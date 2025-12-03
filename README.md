@@ -3,7 +3,10 @@
 **Open-Source Buchhaltungssoftware für Freiberufler, Selbstständige und Kleinunternehmer**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Status](https://img.shields.io/badge/Status-In_Development-yellow)](https://github.com/nicoletta/RechnungsPilot)
+[![Status](https://img.shields.io/badge/Status-In_Development-yellow)](https://github.com/nicolettas-muggelbude/RechnungsPilot)
+[![GitHub stars](https://img.shields.io/github/stars/nicolettas-muggelbude/RechnungsPilot?style=social)](https://github.com/nicolettas-muggelbude/RechnungsPilot/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/nicolettas-muggelbude/RechnungsPilot)](https://github.com/nicolettas-muggelbude/RechnungsPilot/issues)
+[![GitHub discussions](https://img.shields.io/github/discussions/nicolettas-muggelbude/RechnungsPilot)](https://github.com/nicolettas-muggelbude/RechnungsPilot/discussions)
 
 ---
 
