@@ -55,14 +55,23 @@ RechnungsPilot ist eine plattformunabhängige, Open-Source-Lösung für:
 ### **Kassenbuch (Kategorie 1) - ✅ GEKLÄRT**
 
 #### **Erfassung:**
-- **Manuelle Eingabe** mit Feldern:
+- **Manuelle Eingabe** mit Feldern (siehe `kassenbuchfelder.csv`):
   - Datum
-  - Zahlungsart (Bank / Bar)
+  - Belegnr.
   - Beschreibung
-  - Kategorie
-  - Einnahme
-  - Ausgabe
-  - Summe
+  - **Einnahmen** (getrennt nach Zahlungsart):
+    - Bar-Einnahmen
+    - Karten-Einnahmen
+    - Bank-Einnahmen
+    - PayPal-Einnahmen
+  - **Ausgaben** (getrennt nach Zahlungsart):
+    - Bar-Ausgaben
+    - Karten-Ausgaben
+    - Bank-Ausgaben
+    - PayPal-Ausgaben
+  - Tagesendsumme Bar
+  - Summe alle Einnahmen
+  - Summe alle Ausgaben
 
 - **Automatisch aus Rechnungsbüchern:**
   - Aus Rechnungseingangsbuch (bei Barzahlung)
@@ -79,8 +88,16 @@ RechnungsPilot ist eine plattformunabhängige, Open-Source-Lösung für:
 #### **Struktur:**
 - **Eine Kasse** (vorerst, kein Multi-Kassen-System)
 - **Einmaliger Kassenanfangsbestand** bei Einrichtung
-- **Kein Tagesabschluss** (kein POS, nur Mindestanforderung Buchführung)
+- **Tagesabschluss / Z-Bon:**
+  - Nicht verpflichtend bei dieser Art der Kassenführung
+  - Aber **empfohlen** und wird implementiert
+  - Täglicher Abschluss mit Soll-Ist-Vergleich
 - **Chronologische Liste** aller Bewegungen
+- **Unveränderbarkeit (GoBD-Anforderung):**
+  - Kassenbucheinträge sind nach Speicherung **unveränderbar**
+  - Stornos und Änderungen werden als **neuer Eintrag** angelegt
+  - Mit **Begründung protokolliert**
+  - Verweis auf ursprünglichen Eintrag (Storno-Kette)
 
 #### **Privatentnahmen/-einlagen:**
 - Eigene Kategorie für Privatentnahmen und -einlagen
