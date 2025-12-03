@@ -101,8 +101,8 @@ Dieses Projekt wird offen entwickelt - die Community soll von Anfang an dabei se
 
 ### Community
 
-- 📣 **Diskussionen**: [GitHub Discussions](https://github.com/nicoletta/RechnungsPilot/discussions) *(coming soon)*
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/nicoletta/RechnungsPilot/issues)
+- 📣 **Diskussionen**: [GitHub Discussions](https://github.com/nicolettas-muggelbude/RechnungsPilot/discussions)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/nicolettas-muggelbude/RechnungsPilot/issues)
 - 📧 **Kontakt**: *(coming soon)*
 
 ---
