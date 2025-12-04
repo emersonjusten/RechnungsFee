@@ -103,16 +103,199 @@ RechnungsPilot ist eine plattformunabhängige, Open-Source-Lösung für:
 #### **Struktur:**
 - **Eine Kasse** (vorerst, kein Multi-Kassen-System)
 - **Einmaliger Kassenanfangsbestand** bei Einrichtung
-- **Tagesabschluss / Z-Bon:**
-  - Nicht verpflichtend bei dieser Art der Kassenführung
-  - Aber **empfohlen** und wird implementiert
-  - Täglicher Abschluss mit Soll-Ist-Vergleich
 - **Chronologische Liste** aller Bewegungen
 - **Unveränderbarkeit (GoBD-Anforderung):**
   - Kassenbucheinträge sind nach Speicherung **unveränderbar**
   - Stornos und Änderungen werden als **neuer Eintrag** angelegt
   - Mit **Begründung protokolliert**
   - Verweis auf ursprünglichen Eintrag (Storno-Kette)
+
+---
+
+#### **Tagesabschluss & Zählprotokoll:**
+
+**GoBD-Anforderung:**
+- Nicht verpflichtend bei dieser Art der Kassenführung (kein POS)
+- Aber **empfohlen** und wird implementiert
+- Täglicher Abschluss mit Soll-Ist-Vergleich dokumentiert Differenzen
+
+**Workflow:**
+
+**1. Tagesabschluss auslösen:**
+```
+┌─────────────────────────────────────────┐
+│ Tagesabschluss für 04.12.2025           │
+├─────────────────────────────────────────┤
+│ Kassenstand (berechnet):                │
+│ • Anfangsbestand:         500,00 €      │
+│ • Einnahmen (Bar):      1.450,00 €      │
+│ • Ausgaben (Bar):        -320,00 €      │
+│ ────────────────────────────────────    │
+│ • Soll-Endbestand:      1.630,00 €      │
+│                                         │
+│ [Abbrechen]  [Zählprotokoll starten]    │
+└─────────────────────────────────────────┘
+```
+
+**2. Zählprotokoll (Bargeld zählen):**
+```
+┌─────────────────────────────────────────┐
+│ Zählprotokoll - 04.12.2025              │
+├─────────────────────────────────────────┤
+│ Scheine:                                │
+│ • 500 €  [0] Stück    =      0,00 €     │
+│ • 200 €  [0] Stück    =      0,00 €     │
+│ • 100 €  [5] Stück    =    500,00 €     │
+│ • 50 €   [12] Stück   =    600,00 €     │
+│ • 20 €   [18] Stück   =    360,00 €     │
+│ • 10 €   [8] Stück    =     80,00 €     │
+│ • 5 €    [10] Stück   =     50,00 €     │
+│                                         │
+│ Münzen:                                 │
+│ • 2 €    [15] Stück   =     30,00 €     │
+│ • 1 €    [8] Stück    =      8,00 €     │
+│ • 0,50 € [4] Stück    =      2,00 €     │
+│ • 0,20 € [0] Stück    =      0,00 €     │
+│ • 0,10 € [0] Stück    =      0,00 €     │
+│ • 0,05 € [0] Stück    =      0,00 €     │
+│ • 0,02 € [0] Stück    =      0,00 €     │
+│ • 0,01 € [0] Stück    =      0,00 €     │
+│                                         │
+│ ────────────────────────────────────    │
+│ Ist-Endbestand:         1.630,00 €      │
+│                                         │
+│ [Zurück]  [Weiter zum Abgleich]         │
+└─────────────────────────────────────────┘
+```
+
+**3. Soll-Ist-Vergleich:**
+```
+┌─────────────────────────────────────────┐
+│ Tagesabschluss - Ergebnis               │
+├─────────────────────────────────────────┤
+│ Soll-Endbestand:        1.630,00 €      │
+│ Ist-Endbestand:         1.630,00 €      │
+│ ────────────────────────────────────    │
+│ Differenz:                  0,00 € ✅    │
+│                                         │
+│ Status: Kasse stimmt!                   │
+│                                         │
+│ [Tagesabschluss speichern]              │
+└─────────────────────────────────────────┘
+```
+
+**4. Bei Differenz - Begründung erfassen:**
+```
+┌─────────────────────────────────────────┐
+│ Tagesabschluss - Differenz erkannt      │
+├─────────────────────────────────────────┤
+│ Soll-Endbestand:        1.630,00 €      │
+│ Ist-Endbestand:         1.625,00 €      │
+│ ────────────────────────────────────    │
+│ Differenz:                 -5,00 € ⚠️    │
+│                                         │
+│ ⚠️ Bitte Differenz begründen:           │
+│ ┌─────────────────────────────────────┐ │
+│ │ Fehlbetrag, vermutlich Wechselgeld  │ │
+│ │ falsch herausgegeben                │ │
+│ │                                     │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ Differenzbuchung:                       │
+│ ○ Als Privatentnahme buchen (Manko)     │
+│ ○ Als sonstiger Aufwand buchen          │
+│ ○ Korrektur ohne Buchung (nur Protokoll)│
+│                                         │
+│ [Abbrechen]  [Speichern & Abschließen]  │
+└─────────────────────────────────────────┘
+```
+
+**5. Gespeichertes Zählprotokoll:**
+
+Nach Speicherung wird ein **unveränderliches Zählprotokoll** erstellt:
+
+```json
+{
+  "datum": "2025-12-04",
+  "uhrzeit": "18:30:00",
+  "benutzer": "user@example.com",
+  "soll_endbestand": 1630.00,
+  "ist_endbestand": 1625.00,
+  "differenz": -5.00,
+  "begründung": "Fehlbetrag, vermutlich Wechselgeld falsch herausgegeben",
+  "differenzbuchung": "Privatentnahme",
+  "zaehlung": {
+    "scheine": {
+      "500": 0, "200": 0, "100": 5, "50": 12,
+      "20": 18, "10": 8, "5": 10
+    },
+    "muenzen": {
+      "2": 15, "1": 8, "0.5": 4, "0.2": 0,
+      "0.1": 0, "0.05": 0, "0.02": 0, "0.01": 0
+    }
+  },
+  "kassenbewegungen_anzahl": 23,
+  "einnahmen_bar": 1450.00,
+  "ausgaben_bar": 320.00,
+  "unveraenderbar": true,
+  "signatur": "SHA256:a3f5b8..."
+}
+```
+
+**Datenbank-Schema:**
+```sql
+CREATE TABLE tagesabschluesse (
+  id INTEGER PRIMARY KEY,
+  datum DATE NOT NULL,
+  uhrzeit TIME NOT NULL,
+  benutzer TEXT,
+
+  -- Soll-Berechnung
+  anfangsbestand DECIMAL,
+  einnahmen_bar DECIMAL,
+  ausgaben_bar DECIMAL,
+  soll_endbestand DECIMAL,
+
+  -- Ist-Zählung
+  ist_endbestand DECIMAL,
+  zaehlung_json TEXT, -- Münzen/Scheine-Details
+
+  -- Differenz
+  differenz DECIMAL,
+  differenz_begründung TEXT,
+  differenz_buchungsart TEXT, -- "Privatentnahme", "Aufwand", "Nur Protokoll"
+
+  -- GoBD
+  kassenbewegungen_anzahl INTEGER,
+  unveraenderbar BOOLEAN DEFAULT 1,
+  signatur TEXT,
+
+  erstellt_am TIMESTAMP,
+  UNIQUE(datum) -- Ein Tagesabschluss pro Tag
+);
+```
+
+**Funktionen:**
+
+**Automatische Erinnerung:**
+- Bei Öffnen der Software: "Kein Tagesabschluss für gestern - jetzt durchführen?"
+- Optional: Tägliche Push-Benachrichtigung (Mobile PWA)
+
+**PDF-Export des Zählprotokolls:**
+- Für Steuerberater/Finanzamt
+- Alle Tagesabschlüsse eines Monats/Jahres
+- Mit Unterschriftsfeld (optional)
+
+**Statistik:**
+- Durchschnittliche Differenzen
+- Häufigkeit von Mankos/Überschüssen
+- Warnung bei häufigen Differenzen (>5% der Tage)
+
+**GoBD-Konformität:**
+- Zählprotokolle sind unveränderbar
+- Differenzen müssen begründet werden
+- Vollständige Dokumentation aller Kassenabschlüsse
+- Export für Betriebsprüfung
 
 #### **Privatentnahmen/-einlagen:**
 - Eigene Kategorie für Privatentnahmen und -einlagen
@@ -1283,7 +1466,7 @@ function DatevExport() {
 
 ### **Vorschlag 1: LibreOffice-Rechnungsvorlagen mit ZUGFeRD-Platzhaltern**
 
-**Quelle:** Community-Diskussion auf GitHub
+**Quelle:** Community-Diskussion auf forum.linuxguides.de
 **Datum:** 2025-12-03
 
 **Idee:**
