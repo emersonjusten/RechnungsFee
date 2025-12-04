@@ -404,6 +404,71 @@ User kann in den Einstellungen das Standard-Verhalten ändern:
   - Noise Reduction (Rauschen entfernen)
 - Tesseract.js + EasyOCR als Fallback
 
+#### **Pflichtfelder für XRechnung und ZUGFeRD:**
+
+**Kritische Pflichtfelder (ohne diese geht nicht):**
+
+| Kategorie | Feld | XRechnung | ZUGFeRD | EN-Code |
+|-----------|------|-----------|---------|---------|
+| **Rechnungsinfo** | Rechnungsnummer | ✅ Pflicht | ✅ Pflicht | BT-1 |
+| | Rechnungsdatum | ✅ Pflicht | ✅ Pflicht | BT-2 |
+| | Rechnungstyp (z.B. "380" = Handelsrechnung) | ✅ Pflicht | ✅ Pflicht | BT-3 |
+| | Währung (z.B. "EUR") | ✅ Pflicht | ✅ Pflicht | BT-5 |
+| **Lieferant** | Name | ✅ Pflicht | ✅ Pflicht | BT-27 |
+| | Adresse (Straße, PLZ, Ort, Land) | ✅ Pflicht | ✅ Pflicht | BT-35-38 |
+| | Steuernummer ODER USt-ID | ✅ Pflicht (eins) | ✅ Pflicht (eins) | BT-31/32 |
+| **Kunde** | Name | ✅ Pflicht | ✅ Pflicht | BT-44 |
+| | Adresse (Straße, PLZ, Ort, Land) | ✅ Pflicht | ✅ Pflicht | BT-50-53 |
+| | USt-ID | ⚠️ Nur bei ig. Geschäften | ⚠️ Nur bei ig. Geschäften | BT-48 |
+| **Leistung** | Beschreibung | ✅ Pflicht | ✅ Pflicht | BT-153 |
+| | Menge | ✅ Pflicht | ✅ Pflicht | BT-129 |
+| | Einheit (z.B. "C62" = Stück) | ✅ Pflicht | ✅ Pflicht | BT-130 |
+| | Einzelpreis (netto) | ✅ Pflicht | ✅ Pflicht | BT-146 |
+| | Positionssumme (netto) | ✅ Pflicht | ✅ Pflicht | BT-131 |
+| **Steuer** | Steuerkategorie (z.B. "S" = Standard) | ✅ Pflicht | ✅ Pflicht | BT-151 |
+| | Steuersatz (z.B. "19") | ✅ Pflicht | ✅ Pflicht | BT-119 |
+| **Gesamtbeträge** | Nettosumme | ✅ Pflicht | ✅ Pflicht | BT-106 |
+| | Steuerbetrag gesamt | ✅ Pflicht | ✅ Pflicht | BT-110 |
+| | Bruttosumme (Zahlbetrag) | ✅ Pflicht | ✅ Pflicht | BT-112 |
+| **Zahlung** | IBAN (bei Überweisung) | ✅ Pflicht | ✅ Pflicht | BT-84 |
+| | Zahlungsart-Code (z.B. "58" = SEPA) | 🟡 Empfohlen | 🟡 Empfohlen | BT-81 |
+
+**Zusätzliche XRechnung-Pflichtfelder (nur bei öffentlichen Auftraggebern):**
+
+| Feld | Beschreibung | EN-Code |
+|------|-------------|---------|
+| **Leitweg-ID** | Eindeutige Routing-ID (z.B. "991-12345-67") | BT-13 |
+| **Bestellnummer** | Falls vorhanden | BT-13 |
+
+**⚠️ WICHTIG für XRechnung:** Ohne **Leitweg-ID (Buyer Reference)** wird die Rechnung von öffentlichen Verwaltungen abgelehnt!
+
+---
+
+**Optionale, aber empfohlene Felder:**
+
+| Feld | XRechnung | ZUGFeRD | EN-Code |
+|------|-----------|---------|---------|
+| Fälligkeitsdatum | 🟡 Empfohlen | 🟡 Empfohlen | BT-9 |
+| Leistungszeitraum (Von-Bis) | ⚠️ Pflicht wenn ≠ Rechnungsdatum | 🟡 Empfohlen | BT-72/73 |
+| Skonto (Betrag, Tage) | 🟡 Empfohlen | 🟡 Empfohlen | BT-92/93 |
+| Kontaktdaten (Tel/E-Mail) | 🟡 Empfohlen | 🟡 Empfohlen | BT-41/42 |
+| BIC | ❌ Optional (SEPA) | ❌ Optional (SEPA) | BT-86 |
+| Kundennummer | 🟡 Empfohlen | 🟡 Empfohlen | - |
+| Lieferdatum | 🟡 Empfohlen | 🟡 Empfohlen | BT-72 |
+
+---
+
+**NICHT Pflicht (häufige Irrtümer):**
+
+| Feld | Status |
+|------|--------|
+| Elektronische Signatur | ❌ NICHT Pflicht |
+| Aufbewahrungspflicht-Hinweis | ❌ NICHT Pflicht |
+| BIC (seit SEPA) | ❌ NICHT Pflicht (nur IBAN) |
+| Fälligkeitsdatum | 🟡 Empfohlen, nicht Pflicht |
+
+---
+
 #### **Validierung:**
 
 **Hybrid-System (Option C):**
@@ -411,15 +476,38 @@ User kann in den Einstellungen das Standard-Verhalten ändern:
 **1. Validierung gegen offiziellen Standard:**
 - XRechnung: Gegen XRechnung-Schema validieren
 - ZUGFeRD: Gegen ZUGFeRD-Spezifikation validieren
+- **Pflichtfelder prüfen** (siehe Tabelle oben)
 - Zwei Fehler-Kategorien:
   - **Errors (kritisch):** Import blockiert
     - Korrupte XML-Struktur
-    - Pflichtfelder fehlen (Rechnungsnummer, Betrag)
+    - **Pflichtfelder fehlen** (Rechnungsnummer, Betrag, Lieferant, Kunde, etc.)
+    - **Leitweg-ID fehlt** (nur bei XRechnung für öffentliche Auftraggeber)
     - Nicht parsebar
+    - Ungültige Codes (z.B. falscher Rechnungstyp-Code)
   - **Warnings (unkritisch):** Import möglich mit Hinweis
     - Optionale Felder fehlen
     - Format-Abweichungen (aber lesbar)
     - Veraltete Schema-Version
+    - Empfohlene Felder fehlen (z.B. Fälligkeitsdatum)
+
+**Validierungs-Beispiele:**
+
+**❌ Error - Import blockiert:**
+```
+Fehler (3):
+• BT-1: Rechnungsnummer fehlt (Pflichtfeld)
+• BT-13: Leitweg-ID fehlt (Pflicht bei XRechnung)
+• BT-106: Nettosumme fehlt (Pflichtfeld)
+```
+
+**⚠️ Warning - Import möglich:**
+```
+Warnungen (2):
+• BT-9: Fälligkeitsdatum fehlt (empfohlen)
+• BT-72: Leistungszeitraum fehlt (empfohlen)
+```
+
+---
 
 **2. Bei Validierungsfehlern - Dialog mit Editor-Option:**
 
@@ -1631,6 +1719,15 @@ RechnungsPilot/
 ---
 
 ## **Changelog**
+
+### **2025-12-04 - XRechnung/ZUGFeRD Pflichtfelder präzisiert**
+- Vollständige Pflichtfelder-Tabelle mit EN-Codes (BT-Nummern)
+- Kritische Pflichtfelder: Rechnungsinfo, Lieferant, Kunde, Leistung, Steuer, Gesamtbeträge
+- Leitweg-ID (BT-13) für XRechnung bei öffentlichen Auftraggebern hervorgehoben
+- Unterschiede XRechnung vs. ZUGFeRD klargestellt
+- Optionale vs. empfohlene Felder dokumentiert
+- Häufige Irrtümer aufgeklärt (keine Signatur-Pflicht, kein BIC nötig)
+- Validierungs-Beispiele (Errors vs. Warnings) hinzugefügt
 
 ### **2025-12-04 - Kategorie 4 (DATEV-Export) geklärt**
 - Zentrales Kategorisierungssystem dokumentiert: Buchungstext = Master-Kategorie
