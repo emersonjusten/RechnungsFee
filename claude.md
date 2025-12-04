@@ -787,6 +787,8 @@ CREATE TABLE eks_export (
 
 **Status:** Vollständig analysiert - Struktur, Mapping, Export-Workflow, Datenquellen, Technische Umsetzung geklärt.
 
+**Hinweis:** Frage 3.4 (Zusammenarbeit mit Jobcentern / API-Anbindung) wurde an eine **Arbeitslosenselbsthilfe-Beratungsgruppe** zur Rückmeldung gegeben. Expertise aus der Community wird bei weiterer Entwicklung berücksichtigt.
+
 ---
 
 ### **📊 UStVA-Datenaufbereitung (Verbindung zu Kategorie 6)**
@@ -834,9 +836,437 @@ Zahllast/Erstattung:
 
 ---
 
+### **DATEV-Export (Kategorie 4) - ✅ GEKLÄRT**
+
+#### **Zentrales Konzept: Buchungstext = Master-Kategorie**
+
+**RechnungsPilot verwendet ein einheitliches Kategorisierungssystem:**
+
+```
+User wählt Buchungstext/Kategorie (z.B. "Büromaterial")
+         ↓
+System ordnet automatisch zu:
+  ├─ DATEV-Konto: 4910 (SKR03) / 6815 (SKR04)
+  ├─ EKS-Kategorie: B9 (Büro- und Geschäftsbedarf)
+  ├─ UStVA: Vorsteuer abziehbar (falls zutreffend)
+  └─ Kassenbuch/Rechnungen: Kategorie-Feld
+```
+
+**Vorteile:**
+- ✅ Einmal kategorisieren → Alle Exporte korrekt
+- ✅ Keine Mehrfach-Zuordnung nötig
+- ✅ Konsistenz über alle Module (Kassenbuch, Rechnungen, DATEV, EKS)
+- ✅ Einfach für Laien (nur Kategorie auswählen)
+- ✅ Flexibel (Konten überschreibbar für individuelle Steuerbüros)
+
+---
+
+#### **Kategorien-Master-Tabelle**
+
+Diese zentrale Tabelle definiert alle Zuordnungen:
+
+**Ausgaben (Aufwand):**
+
+| Buchungstext/Kategorie | SKR03 | SKR04 | EKS | Art |
+|------------------------|-------|-------|-----|-----|
+| Wareneinkauf | 5000 | 7000 | B1 | Aufwand |
+| Löhne und Gehälter | 4100 | 6020 | B2.1 | Aufwand |
+| Sozialabgaben | 4130 | 6030 | B2.2 | Aufwand |
+| Raumkosten | 4210 | 6300 | B3 | Aufwand |
+| Versicherungen (Betrieb) | 4360 | 6500 | B4 | Aufwand |
+| Werbung | 4600 | 6640 | B5 | Aufwand |
+| Kfz-Kosten (laufend) | 4530 | 6520 | B6.1 | Aufwand |
+| Kfz-Steuer | 4531 | 6530 | B6.2 | Aufwand |
+| Kfz-Versicherung | 4532 | 6535 | B6.3 | Aufwand |
+| Leasing | 4850 | 6825 | B6.4 | Aufwand |
+| Abschreibungen Kfz | 4832 | 6222 | B6.5 | Aufwand |
+| Reisekosten (Fahrt) | 4670 | 6681 | B7.1 | Aufwand |
+| Reisekosten (Übernachtung) | 4673 | 6683 | B7.2 | Aufwand |
+| Investitionen | - | - | B8 | Anlage |
+| Büromaterial | 4910 | 6815 | B9 | Aufwand |
+| Kommunikation (Tel/Internet) | 4920 | 6805 | B10 | Aufwand |
+| Beratung | 4945 | 6821 | B11 | Aufwand |
+| Fortbildung | 4946 | 6824 | B12 | Aufwand |
+| Reparaturen | 4800 | 6820 | B13.1 | Aufwand |
+| Beiträge/Abgaben | 4930 | 6822 | B13.2 | Aufwand |
+| Steuerberatung | 4157 | 6827 | B13.3 | Aufwand |
+| Bewirtung | 4650 | 6644 | B13.4 | Aufwand |
+| Sonstiges | 4980 | 6855 | B13.5 | Aufwand |
+| Zinsen | 2100 | 2100 | B14 | Aufwand |
+| Tilgung | - | - | B15 | Privat |
+
+**Einnahmen (Erlöse):**
+
+| Buchungstext/Kategorie | SKR03 | SKR04 | EKS | Art |
+|------------------------|-------|-------|-----|-----|
+| Betriebseinnahmen 19% | 8400 | 4400 | A1 | Erlös |
+| Betriebseinnahmen 7% | 8300 | 4300 | A1 | Erlös |
+| Betriebseinnahmen 0% (§19) | 8100 | 4120 | A1 | Erlös |
+| Privatentnahme | 1890 | 1800 | A2 | Privat |
+| Sonstige Einnahmen | 2650 | 2731 | A3 | Erlös |
+| Privateinlage | 1880 | 1790 | A4 | Privat |
+
+**Hinweis:** Konten-Nummern sind Standard-Vorschläge. User kann diese in Stammdaten überschreiben (z.B. wenn Steuerbüro abweichende Konten nutzt).
+
+---
+
+#### **4.1 Kontenrahmen: SKR03 und SKR04**
+
+✅ **Beide Kontenrahmen unterstützen**
+- SKR03 (Gewerbetreibende)
+- SKR04 (Freiberufler)
+
+✅ **Automatische Ableitung aus Stammdaten:**
+- Bei Einrichtung: Frage "Freiberuflich oder Gewerbe?"
+  - Freiberuflich → SKR04 vorausgewählt
+  - Gewerbe → SKR03 vorausgewählt
+- User kann manuell überschreiben
+
+✅ **Parallelbetrieb möglich:**
+- Bei gemischter Tätigkeit (Gewerbe + Freiberuf):
+  - Beide Kontenrahmen verfügbar
+  - Pro Buchung auswählbar (Stammdaten: "Welche Tätigkeit?")
+  - Separate DATEV-Exporte für jede Tätigkeit
+
+**Technische Umsetzung:**
+```sql
+CREATE TABLE stammdaten_unternehmen (
+  id INTEGER PRIMARY KEY,
+  taetigkeitsart TEXT, -- "freiberuflich", "gewerbe", "gemischt"
+  kontenrahmen_primaer TEXT, -- "SKR03" oder "SKR04"
+  kontenrahmen_sekundaer TEXT -- optional bei "gemischt"
+);
+```
+
+---
+
+#### **4.2 DATEV ASCII-Format & Stammdaten**
+
+✅ **Format:** DATEV ASCII CSV (Standard-Format, siehe `datev-export.csv`)
+
+✅ **Pflicht-Stammdaten bei DATEV-Export-Aktivierung:**
+
+**1. Beraternummer (7-stellig)**
+- Vom Steuerberater erhalten
+- Pflichtfeld im DATEV-Header
+
+**2. Mandantennummer (5-stellig)**
+- Vom Steuerberater erhalten
+- Pflichtfeld im DATEV-Header
+
+**3. Individuelle Konten-Zuordnung (optional, aber empfohlen):**
+- **Erlös-Konten** (Steuerbüros weichen oft ab):
+  - Erlös 19%: Standard 8400 (SKR03) / 4400 (SKR04)
+  - Erlös 7%: Standard 8300 (SKR03) / 4300 (SKR04)
+  - Erlös 0% (§19): Standard 8100 (SKR03) / 4120 (SKR04)
+- **Steuer-Konten:**
+  - Umsatzsteuer 19%: Standard 1776 (SKR03) / 1776 (SKR04)
+  - Umsatzsteuer 7%: Standard 1771 (SKR03) / 1771 (SKR04)
+  - Vorsteuer 19%: Standard 1576 (SKR03) / 1406 (SKR04)
+  - Vorsteuer 7%: Standard 1571 (SKR03) / 1401 (SKR04)
+
+**Eingabemaske "DATEV-Einstellungen":**
+```
+┌─────────────────────────────────────────┐
+│ DATEV-Export aktivieren                 │
+├─────────────────────────────────────────┤
+│ Beraternummer: [_______]                │
+│ Mandantennummer: [_____]                │
+│                                         │
+│ Kontenrahmen: ● SKR03  ○ SKR04          │
+│                                         │
+│ Individuelle Konten (optional):         │
+│ ┌─────────────────────────────────────┐ │
+│ │ Erlös 19%:    [8400] (Standard)     │ │
+│ │ Erlös 7%:     [8300] (Standard)     │ │
+│ │ Erlös 0%:     [8100] (Standard)     │ │
+│ │ USt 19%:      [1776] (Standard)     │ │
+│ │ Vorsteuer 19%:[1576] (Standard)     │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ [Standard wiederherstellen]             │
+│                                         │
+│ [Abbrechen]  [Speichern & Aktivieren]   │
+└─────────────────────────────────────────┘
+```
+
+**Validierung:**
+- Beim Klick auf "Aktivieren": Prüfen ob Beraternr. & Mandantennr. vorhanden
+- Falls fehlend: Fehlermeldung "Bitte tragen Sie zuerst die DATEV-Daten ein"
+
+---
+
+#### **4.3 Buchungsstapel-Export**
+
+✅ **Zeitraum-Export:**
+- User wählt Zeitraum (z.B. "Januar 2026" oder "01.01.-31.01.2026")
+- Alle Belege des Zeitraums werden exportiert:
+  - Eingangsrechnungen (mit Zahlungsstatus)
+  - Ausgangsrechnungen (mit Zahlungsstatus)
+  - Kassenbucheinträge
+
+✅ **Automatische Konten-Zuordnung:**
+- Basierend auf **Buchungstext/Kategorie** (siehe Master-Tabelle)
+- User wählt z.B. "Büromaterial" → System verwendet Konto 4910 (SKR03)
+- **Überschreibbar** in Stammdaten (für Steuerbüro-Abweichungen)
+
+✅ **Detailgrad: Rechnungssummen**
+- **Eine Buchungszeile pro Beleg** (nicht pro Rechnungsposition)
+- Brutto-Betrag wird gebucht
+- Steuersatz in Beleginfo
+
+**Beispiel-Buchung (Eingangsrechnung Büromaterial 119,00 € brutto):**
+```csv
+119,00;"S";"";"";"";"";"4910";"1600";"";"0101";"RE2025-001";"";"";
+"Büromaterial Firma XY";"";"";"";"";"";"";"Steuersatz";"19"
+```
+
+✅ **Soll/Haben-Buchungen automatisch generieren:**
+
+**Eingangsrechnungen (Ausgaben):**
+```
+Soll:  Aufwandskonto (z.B. 4910 Büromaterial)
+Haben: Verbindlichkeiten (1600) oder Kasse (1000) oder Bank (1200)
+Kennzeichen: "S" (Soll)
+```
+
+**Ausgangsrechnungen (Einnahmen):**
+```
+Soll:  Forderungen (1410) oder Kasse (1000) oder Bank (1200)
+Haben: Erlöskonto (z.B. 8400 Erlöse 19%)
+Kennzeichen: "H" (Haben)
+```
+
+**Kassenbucheinträge:**
+- Bei Bareinnahme: Kasse (1000) an Erlöskonto (8400) → "H"
+- Bei Barausgabe: Aufwandskonto (4910) an Kasse (1000) → "S"
+
+**Zahlungsstatus berücksichtigen:**
+- Rechnung unbezahlt: Gegenkonto = Forderungen (1410) / Verbindlichkeiten (1600)
+- Rechnung bezahlt per Bank: Gegenkonto = Bank (1200)
+- Rechnung bezahlt bar: Gegenkonto = Kasse (1000)
+- Teilzahlung: Mehrere Buchungszeilen
+
+---
+
+#### **4.4 DATEV-Format-Details**
+
+✅ **Format: CSV-DATEV ASCII**
+- Basierend auf DATEV-Spezifikation (siehe `datev-export.csv`)
+- Header-Zeile mit Metadaten
+- Spalten-Überschriften-Zeile
+- Buchungszeilen
+
+✅ **Header (Zeile 1):**
+```
+"EXTF";510;21;"Buchungsstapel";7;[Timestamp];"";[App];"[Firma]";"";
+[Beraternr];[Mandantennr];[WJ-Beginn];4;[Von];[Bis];"[Bezeichnung]";
+"";1;0;1;"EUR";;;;;"[SKR]";;;"";""
+```
+
+**Pflichtfelder im Header:**
+- Beraternummer (Stammdaten)
+- Mandantennummer (Stammdaten)
+- Kontenrahmen ("03" oder "04")
+- Wirtschaftsjahr-Beginn
+- Zeitraum Von-Bis
+
+✅ **Buchungszeilen - Pflichtfelder:**
+
+| Feld | Beschreibung | Beispiel |
+|------|-------------|----------|
+| **Umsatz** | Brutto-Betrag | 119,00 |
+| **Soll/Haben-Kz** | "S" oder "H" | "S" |
+| **Konto** | Aufwands-/Erlöskonto | 4910 |
+| **Gegenkonto** | Verbindl./Ford./Kasse | 1600 |
+| **Belegdatum** | TTMM-Format | 0101 |
+| **Belegfeld 1** | Belegnummer | RE2025-001 |
+| **Buchungstext** | Beschreibung | Büromaterial |
+| **Beleginfo - Art 1** | "Steuersatz" | Steuersatz |
+| **Beleginfo - Inhalt 1** | "19" / "7" / "" | 19 |
+
+✅ **Optionale Felder:**
+- BU-Schlüssel (Buchungsschlüssel)
+- Kostenstellen (KOST1, KOST2)
+- Skonto
+- Zahlungsweise
+- EU-Land / UStID (bei innergemeinschaftlichen Geschäften)
+- Diverse Adressnummer
+- Viele weitere (~100+ Felder)
+
+✅ **BU-Schlüssel (Buchungsschlüssel):**
+- **Standard: Leer lassen**
+  - DATEV berechnet automatisch aus Konto + Steuersatz
+- **Ausnahmen:**
+  - "20" bei Stornobuchungen
+  - Spezielle Schlüssel bei EU-Geschäften (z.B. "40" für innergemeinschaftlichen Erwerb)
+- **Power-User:** Können manuell BU-Schlüssel setzen
+
+**Regel:** Wenn unsicher → BU-Schlüssel weglassen, DATEV macht das automatisch richtig.
+
+---
+
+#### **Export-Workflow:**
+
+**Schritt 1: Zeitraum wählen**
+```
+┌─────────────────────────────────────────┐
+│ DATEV-Export                            │
+├─────────────────────────────────────────┤
+│ Zeitraum:                               │
+│ Von: [01.01.2026]  Bis: [31.01.2026]   │
+│                                         │
+│ Filter:                                 │
+│ ☑ Eingangsrechnungen                    │
+│ ☑ Ausgangsrechnungen                    │
+│ ☑ Kassenbuch                            │
+│                                         │
+│ [Abbrechen]  [Vorschau →]               │
+└─────────────────────────────────────────┘
+```
+
+**Schritt 2: Vorschau & Prüfung**
+```
+┌─────────────────────────────────────────┐
+│ DATEV-Export Vorschau: Januar 2026      │
+├─────────────────────────────────────────┤
+│ 📊 Zusammenfassung:                     │
+│ • 42 Buchungen (15 ER / 23 AR / 4 KB)   │
+│ • Summe Einnahmen: 15.430,00 €          │
+│ • Summe Ausgaben: 4.290,00 €            │
+│                                         │
+│ ⚠️ Warnungen:                           │
+│ • 3 Rechnungen ohne Kategorie           │
+│   → Bitte nachträglich kategorisieren   │
+│                                         │
+│ ✅ Bereit für Export                    │
+│                                         │
+│ [Zurück]  [Fehlende Daten ergänzen]     │
+│           [Als CSV exportieren]         │
+└─────────────────────────────────────────┘
+```
+
+**Schritt 3: Export**
+- CSV-Datei generieren: `DATEV_2026-01_Buchungen.csv`
+- Encoding: Windows-1252 (DATEV-Standard)
+- Speicherort: User wählt
+- Hinweis: "Datei kann jetzt in DATEV importiert werden"
+
+---
+
+#### **Technische Umsetzung:**
+
+**Datenbank-Schema:**
+```sql
+CREATE TABLE datev_einstellungen (
+  id INTEGER PRIMARY KEY,
+  beraternummer TEXT,
+  mandantennummer TEXT,
+  kontenrahmen TEXT, -- "SKR03" oder "SKR04"
+  individuell_konten JSON -- {"8400": "8405", ...}
+);
+
+CREATE TABLE kategorien_mapping (
+  id INTEGER PRIMARY KEY,
+  kategorie TEXT, -- "Büromaterial"
+  konto_skr03 TEXT, -- "4910"
+  konto_skr04 TEXT, -- "6815"
+  eks_kategorie TEXT, -- "B9"
+  kontenart TEXT -- "Aufwand", "Erlös", "Privat", "Anlage"
+);
+
+CREATE TABLE datev_export_log (
+  id INTEGER PRIMARY KEY,
+  zeitraum_von DATE,
+  zeitraum_bis DATE,
+  anzahl_buchungen INTEGER,
+  exportiert_am TIMESTAMP,
+  datei_pfad TEXT
+);
+```
+
+**Export-Library (Python):**
+```python
+# datev_export.py
+import csv
+from datetime import datetime
+
+def export_datev(zeitraum_von, zeitraum_bis, kontenrahmen):
+    # 1. Header generieren
+    header = generate_datev_header(kontenrahmen)
+
+    # 2. Buchungen sammeln
+    buchungen = []
+    buchungen += get_eingangsrechnungen(zeitraum_von, zeitraum_bis)
+    buchungen += get_ausgangsrechnungen(zeitraum_von, zeitraum_bis)
+    buchungen += get_kassenbuch(zeitraum_von, zeitraum_bis)
+
+    # 3. Soll/Haben generieren
+    buchungszeilen = [create_buchungszeile(b, kontenrahmen) for b in buchungen]
+
+    # 4. CSV schreiben
+    write_datev_csv(header, buchungszeilen, filename)
+```
+
+**Frontend (React):**
+```typescript
+// DatevExport.tsx
+import { useState } from 'react';
+
+function DatevExport() {
+  const [zeitraum, setZeitraum] = useState({ von: '', bis: '' });
+  const [vorschau, setVorschau] = useState(null);
+
+  const generatePreview = async () => {
+    const data = await api.datev.preview(zeitraum);
+    setVorschau(data);
+  };
+
+  const exportCSV = async () => {
+    await api.datev.export(zeitraum);
+  };
+
+  return (/* UI siehe oben */);
+}
+```
+
+---
+
+#### **Validierung & Fehlervermeidung:**
+
+**Vor Export prüfen:**
+- ✅ Alle Belege haben Kategorie zugeordnet
+- ✅ Alle Konten existieren im gewählten Kontenrahmen
+- ✅ Beraternummer & Mandantennummer vorhanden
+- ✅ Belegdaten plausibel (nicht in der Zukunft)
+- ✅ Keine negativen Beträge (außer Storno)
+
+**Warnungen:**
+- ⚠️ "3 Belege ohne Kategorie - Export unvollständig"
+- ⚠️ "Kassenendstand stimmt nicht mit Berechnungen überein"
+- ⚠️ "Einige Konten weichen von Standard ab - bitte prüfen"
+
+---
+
+#### **DATEV Kassenarchiv Online:**
+
+**Status:** Keine offizielle Dokumentation gefunden
+
+**Empfehlung:**
+- MVP: Standard-DATEV-Export (wie oben) ✅
+- Post-MVP: DATEV Kassenarchiv separat recherchieren
+- Eventuell bei DATEV anfragen oder Reverse Engineering
+
+**Hinweis:** Da RechnungsPilot kein POS-Kassensystem ist (keine TSE), ist DATEV Kassenarchiv nicht verpflichtend. Standard-DATEV-Export reicht für MVP.
+
+---
+
+**Status:** Vollständig geklärt - Kontenrahmen, Format, Buchungsstapel, Kategorisierungssystem, Export-Workflow, Technische Umsetzung definiert.
+
+---
+
 ### **Noch zu klären (siehe fragen.md):**
 
-- Kategorie 4: DATEV-Export
 - Kategorie 5: Bank-Integration
 - Kategorie 6: UStVA (Details)
 - Kategorie 7: EÜR
@@ -1018,6 +1448,18 @@ RechnungsPilot/
 ---
 
 ## **Changelog**
+
+### **2025-12-04 - Kategorie 4 (DATEV-Export) geklärt**
+- Zentrales Kategorisierungssystem dokumentiert: Buchungstext = Master-Kategorie
+- Kategorien-Master-Tabelle mit SKR03/SKR04/EKS-Mapping erstellt (28 Kategorien)
+- Kontenrahmen-Unterstützung: SKR03 + SKR04, automatische Ableitung, Parallelbetrieb
+- DATEV ASCII-Format vollständig analysiert (datev-export.csv)
+- Pflicht-Stammdaten definiert: Beraternummer, Mandantennummer, individuelle Konten
+- Buchungsstapel-Export: Zeitraum, Auto-Konten, Soll/Haben-Automatik
+- DATEV-Format-Details: Pflichtfelder, optionale Felder, BU-Schlüssel-Regeln
+- Export-Workflow mit Vorschau und Validierung konzipiert
+- Datenbank-Schema für DATEV-Modul entworfen
+- Technische Umsetzung (Python + React) skizziert
 
 ### **2025-12-04 - Kategorie 3 (Anlage EKS) geklärt**
 - Anlage EKS (9-seitiges Jobcenter-Formular) vollständig analysiert

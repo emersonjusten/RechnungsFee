@@ -4,6 +4,7 @@
 - ✅ Kategorie 1 (Kassenbuch) geklärt
 - ✅ Kategorie 2 (PDF/E-Rechnungs-Import) geklärt
 - ✅ Kategorie 3 (Anlage EKS) geklärt
+- ✅ Kategorie 4 (DATEV-Export) geklärt
 
 ---
 
@@ -62,7 +63,7 @@
 
 ---
 
-## **📋 Kategorie 4: DATEV-Export**
+## **📋 Kategorie 4: DATEV-Export** ✅ GEKLÄRT
 
 ### **Kontenrahmen:**
 
