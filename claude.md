@@ -1579,16 +1579,63 @@ function DatevExport() {
   - Kreativ-Vorlage (für Designer/Kreative)
 - **Platzhalter-System:**
   ```
+  # Rechnungsinformationen
   {{RECHNUNGSNUMMER}}
   {{DATUM}}
-  {{KUNDE_NAME}}
-  {{KUNDE_ADRESSE}}
-  {{POSITIONEN}}
+  {{RECHNUNGSTYP}}  # z.B. "Rechnung", "Gutschrift", "Stornorechnung"
+  {{ZAHLUNGSZIEL}}
+  {{FAELLIGKEITSDATUM}}
+
+  # Lieferant (Absender) - Strukturierte Adresse
+  {{ABSENDER_VORNAME}}
+  {{ABSENDER_NACHNAME}}
+  {{ABSENDER_FIRMA}}  # Optional, falls vorhanden
+  {{ABSENDER_STRASSE}}
+  {{ABSENDER_HAUSNUMMER}}  # Optional separat
+  {{ABSENDER_PLZ}}
+  {{ABSENDER_ORT}}
+  {{ABSENDER_LAND}}
+  {{ABSENDER_TELEFON}}
+  {{ABSENDER_EMAIL}}
+  {{ABSENDER_WEBSITE}}
+  {{ABSENDER_STEUERNUMMER}}
+  {{ABSENDER_USTID}}
+  {{ABSENDER_BANKNAME}}
+  {{ABSENDER_IBAN}}
+  {{ABSENDER_BIC}}
+
+  # Kunde (Empfänger) - Strukturierte Adresse
+  {{KUNDE_VORNAME}}
+  {{KUNDE_NACHNAME}}
+  {{KUNDE_FIRMA}}  # Optional, falls vorhanden
+  {{KUNDE_STRASSE}}
+  {{KUNDE_HAUSNUMMER}}  # Optional separat
+  {{KUNDE_PLZ}}
+  {{KUNDE_ORT}}
+  {{KUNDE_LAND}}
+  {{KUNDE_KUNDENNUMMER}}
+  {{KUNDE_USTID}}  # Falls B2B
+
+  # Rechnungspositionen
+  {{POSITIONEN}}  # Tabelle mit Spalten: Pos, Beschreibung, Menge, Einheit, Einzelpreis, Gesamt
+
+  # Beträge
   {{NETTO_GESAMT}}
+  {{UST_SATZ}}  # z.B. "19%"
   {{UST_BETRAG}}
   {{BRUTTO_GESAMT}}
-  {{ZAHLUNGSZIEL}}
-  {{BANKVERBINDUNG}}
+
+  # Optional: Skonto
+  {{SKONTO_PROZENT}}
+  {{SKONTO_BETRAG}}
+  {{SKONTO_TAGE}}
+
+  # Optional: Zusatzinfos
+  {{LEISTUNGSZEITRAUM_VON}}
+  {{LEISTUNGSZEITRAUM_BIS}}
+  {{BESTELLNUMMER}}
+  {{LIEFERDATUM}}
+  {{BEMERKUNG}}
   ```
 - **Integration:**
   - RechnungsPilot öffnet LibreOffice via CLI
