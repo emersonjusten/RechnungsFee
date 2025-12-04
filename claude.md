@@ -56,22 +56,37 @@ RechnungsPilot ist eine plattformunabhängige, Open-Source-Lösung für:
 
 #### **Erfassung:**
 - **Manuelle Eingabe** mit Feldern (siehe `kassenbuchfelder.csv`):
-  - Datum
-  - Belegnr.
-  - Beschreibung
-  - **Einnahmen** (getrennt nach Zahlungsart):
-    - Bar-Einnahmen
-    - Karten-Einnahmen
-    - Bank-Einnahmen
-    - PayPal-Einnahmen
-  - **Ausgaben** (getrennt nach Zahlungsart):
-    - Bar-Ausgaben
-    - Karten-Ausgaben
-    - Bank-Ausgaben
-    - PayPal-Ausgaben
-  - Tagesendsumme Bar
-  - Summe alle Einnahmen
-  - Summe alle Ausgaben
+  - **Basis-Daten:**
+    - Datum
+    - Belegnr. (fortlaufend, eindeutig)
+    - Beschreibung
+    - Kategorie (z.B. "Bürobedarf", "Warenverkauf")
+  - **Zahlungsinformationen:**
+    - Zahlungsart (Bar, Karte, Bank, PayPal)
+    - Art (Einnahme / Ausgabe)
+  - **Beträge (für Vorsteuerabzugsberechtigte):**
+    - Netto-Betrag
+    - USt-Satz (19%, 7%, 0%)
+    - USt-Betrag (automatisch berechnet)
+    - Brutto-Betrag
+  - **Steuerliche Zuordnung:**
+    - Vorsteuerabzug (Ja/Nein - nur bei Ausgaben)
+      - "Ja" = Vorsteuer abziehbar (für UStVA)
+      - "Nein" = Nicht abziehbar (z.B. Privatnutzung)
+  - **Kassenstände:**
+    - Tagesendsumme Bar (laufender Kassenstand)
+
+- **Vereinfachung für §19 UStG (Kleinunternehmer):**
+  - USt-Satz: Immer 0%
+  - USt-Betrag: Immer 0,00 €
+  - Vorsteuerabzug: Nicht relevant
+  - USt-Felder können in UI ausgeblendet werden
+  - Eingabe: Nur Brutto-Beträge
+
+- **Automatische Berechnung:**
+  - Bei Eingabe Brutto + USt-Satz → Netto & USt automatisch
+  - Bei Eingabe Netto + USt-Satz → USt & Brutto automatisch
+  - Umschaltbar: Brutto-/Netto-Eingabemodus
 
 - **Automatisch aus Rechnungsbüchern:**
   - Aus Rechnungseingangsbuch (bei Barzahlung)
@@ -376,6 +391,51 @@ User kann Standard-Verhalten wählen:
 ```
 
 **Status:** Vollständig definiert - Alle Formate, OCR-Optionen, Validierung mit XML-Editor, PDF/A-Archivierung geklärt.
+
+---
+
+### **📊 UStVA-Datenaufbereitung (Verbindung zu Kategorie 6)**
+
+**Wichtige Erkenntnis:** Das Kassenbuch mit USt-Aufschlüsselung bildet die **Datenbasis für die Umsatzsteuervoranmeldung (UStVA)**.
+
+**Datenquellen für UStVA:**
+1. **Kassenbuch:**
+   - Einnahmen nach Steuersatz (19%, 7%, 0%)
+   - Ausgaben mit abziehbarer Vorsteuer
+   - Privatentnahmen (nicht steuerbar)
+
+2. **Eingangsrechnungen:**
+   - Vorsteuer nach Steuersatz
+   - Vorsteuerabzug berechtigt? (Ja/Nein)
+   - Innergemeinschaftlicher Erwerb (§13b)
+   - Reverse-Charge
+
+3. **Ausgangsrechnungen:**
+   - Umsätze nach Steuersatz
+   - Steuerfreie Umsätze
+   - Innergemeinschaftliche Lieferungen
+
+**Automatische UStVA-Berechnung:**
+```
+Umsatzsteuer (Kennziffer 81):
+= Einnahmen 19% (Kassenbuch) + Ausgangsrechnungen 19%
+→ USt-Betrag automatisch summiert
+
+Vorsteuer (Kennziffer 66):
+= Ausgaben 19% (Kassenbuch, Vorsteuerabzug=Ja) + Eingangsrechnungen 19%
+→ Vorsteuer-Betrag automatisch summiert
+
+Zahllast/Erstattung:
+= Umsatzsteuer - Vorsteuer
+```
+
+**Implementierung:**
+- Monatliche/quartalsweise Auswertung
+- Automatische Summierung aus allen Datenquellen
+- Prüfung auf Vollständigkeit
+- Export für ELSTER (später)
+
+**Status:** Grundkonzept definiert, Details in Kategorie 6.
 
 ---
 
