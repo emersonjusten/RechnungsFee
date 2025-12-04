@@ -455,6 +455,66 @@ Zahllast/Erstattung:
 
 ---
 
+## **💬 Community-Vorschläge & Feedback**
+
+### **Vorschlag 1: LibreOffice-Rechnungsvorlagen mit ZUGFeRD-Platzhaltern**
+
+**Quelle:** Community-Diskussion auf GitHub
+**Datum:** 2025-12-03
+
+**Idee:**
+- Rechnungsvorlagen für LibreOffice Writer/Calc bereitstellen
+- Platzhalter nach ZUGFeRD-Richtlinien
+- Integration mit RechnungsPilot:
+  - Daten aus RechnungsPilot in Vorlage einfügen
+  - Automatisches Befüllen aller Pflichtfelder
+  - Export als ZUGFeRD-PDF
+
+**Vorteile:**
+- ✅ User können individuelles Design gestalten
+- ✅ LibreOffice = Open Source (passt zur Philosophie)
+- ✅ Plattformunabhängig
+- ✅ ZUGFeRD-konform (E-Rechnungspflicht ab 2025)
+- ✅ Keine PDF-Generierung in Code nötig
+
+**Technische Umsetzung:**
+- **Vorlagen-Repository:** Sammlung von LO-Templates
+  - Standard-Vorlage (schlicht)
+  - Business-Vorlage (professionell)
+  - Kreativ-Vorlage (für Designer/Kreative)
+- **Platzhalter-System:**
+  ```
+  {{RECHNUNGSNUMMER}}
+  {{DATUM}}
+  {{KUNDE_NAME}}
+  {{KUNDE_ADRESSE}}
+  {{POSITIONEN}}
+  {{NETTO_GESAMT}}
+  {{UST_BETRAG}}
+  {{BRUTTO_GESAMT}}
+  {{ZAHLUNGSZIEL}}
+  {{BANKVERBINDUNG}}
+  ```
+- **Integration:**
+  - RechnungsPilot öffnet LibreOffice via CLI
+  - Befüllt Platzhalter mit Daten
+  - Export als PDF + ZUGFeRD-XML einbetten
+  - Speichert in RechnungsPilot
+
+**Implementierung (später):**
+- Phase: Rechnungsschreiben-Modul (nach MVP)
+- Prio: Mittel (nice-to-have, nicht MVP)
+- Abhängigkeiten: LibreOffice installiert, Python-UNO-Bridge
+
+**Alternative (wenn LO nicht installiert):**
+- HTML-Templates mit ähnlichen Platzhaltern
+- Rendering im Browser
+- Export via Headless-Chrome/Puppeteer
+
+**Status:** Vorgemerkt für spätere Umsetzung, sehr guter Community-Input! 👍
+
+---
+
 ## **Technologie-Stack (Vorschlag - noch zu diskutieren)**
 
 ### **Desktop-App:**
