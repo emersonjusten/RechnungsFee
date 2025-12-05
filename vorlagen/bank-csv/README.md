@@ -41,8 +41,8 @@ bank-csv/
 ├── README.md                  # Diese Datei
 ├── TEMPLATE.md                # Vorlage und Anonymisierungs-Anleitung
 ├── sparkasse-lzo-mt940.csv    # ✅ Sparkasse/LZO - MT940 Format
-├── sparkasse-lzo-camt-v2.csv  # (geplant) Sparkasse/LZO - CAMT V2
-├── sparkasse-lzo-camt-v8.csv  # (geplant) Sparkasse/LZO - CAMT V8
+├── sparkasse-lzo-camt-v2.csv  # ✅ Sparkasse/LZO - CAMT V2 Format
+├── sparkasse-lzo-camt-v8.csv  # ✅ Sparkasse/LZO - CAMT V8 Format
 ├── volksbank.csv              # (noch nicht vorhanden)
 ├── dkb.csv                    # (noch nicht vorhanden)
 ├── ing.csv                    # (noch nicht vorhanden)
@@ -167,8 +167,8 @@ def test_sparkasse_import():
 | Bank | Format | CSV vorhanden | Parser implementiert | Getestet |
 |------|--------|---------------|----------------------|----------|
 | Sparkasse/LZO | MT940 | ✅ | ❌ | ❌ |
-| Sparkasse/LZO | CAMT V2 | ⏳ | ❌ | ❌ |
-| Sparkasse/LZO | CAMT V8 | ⏳ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V2 | ✅ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V8 | ✅ | ❌ | ❌ |
 | Volksbank | - | ❌ | ❌ | ❌ |
 | DKB | - | ❌ | ❌ | ❌ |
 | ING | - | ❌ | ❌ | ❌ |
