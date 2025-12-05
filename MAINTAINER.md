@@ -411,6 +411,61 @@ Kannst du sie bitte noch hochladen?
 Danke! 🙏
 ```
 
+### Problem 7: Bank bietet mehrere Export-Formate
+
+**Situation:**
+Manche Banken bieten verschiedene CSV-Exporte an:
+- **MT940** (SWIFT Standard)
+- **CAMT V2 / V8** (ISO 20022 Cash Management)
+- **Eigenformate** (Bank-spezifische Varianten)
+
+**Beispiel:** Sparkasse/LZO bietet MT940, CAMT V2, CAMT V8
+
+**Lösung:**
+
+**1. Separate Dateien erstellen:**
+```bash
+sparkasse-lzo-mt940.csv
+sparkasse-lzo-camt-v2.csv
+sparkasse-lzo-camt-v8.csv
+```
+
+**2. Namenskonvention:**
+```
+<bank>-<format>.csv              # Ein Format
+<bank>-<format>-<version>.csv    # Mehrere Versionen
+```
+
+**Weitere Beispiele:**
+- `volksbank-mt940.csv`
+- `dkb-standard.csv` (wenn nur ein Format)
+- `commerzbank-camt-v8.csv`
+
+**3. Status-Tabelle erweitern:**
+```markdown
+| Bank | Format | CSV vorhanden | Parser | Getestet |
+|------|--------|---------------|--------|----------|
+| Sparkasse/LZO | MT940 | ✅ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V2 | ✅ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V8 | ✅ | ❌ | ❌ |
+```
+
+**4. Im Danke-Kommentar erwähnen:**
+```markdown
+Vielen Dank! 🎉
+
+Die CSV für **Sparkasse/LZO (MT940-Format)** wurde hinzugefügt!
+
+**Hinweis:** Diese Bank bietet auch CAMT V2 und V8 Exporte an.
+Falls du diese Formate auch beitragen möchtest, wäre das super! 🚀
+```
+
+**Warum mehrere Formate wichtig sind:**
+- User können unterschiedliche Formate bevorzugen
+- Manche Formate haben mehr/weniger Details
+- Parser-Robustheit testen (verschiedene Strukturen)
+- Flexibilität für End-User
+
 ---
 
 ## 📊 Status-Tracking

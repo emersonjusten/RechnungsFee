@@ -38,15 +38,20 @@ Dieser Ordner enthält Beispiel-CSVs verschiedener Banken für die Import-Funkti
 
 ```
 bank-csv/
-├── README.md              # Diese Datei
-├── TEMPLATE.md            # Vorlage und Anonymisierungs-Anleitung
-├── sparkasse-lzo.csv      # ✅ Sparkasse/LZO (Landessparkasse zu Oldenburg)
-├── volksbank.csv          # (noch nicht vorhanden)
-├── dkb.csv                # (noch nicht vorhanden)
-├── ing.csv                # (noch nicht vorhanden)
-├── n26.csv                # (noch nicht vorhanden)
+├── README.md                  # Diese Datei
+├── TEMPLATE.md                # Vorlage und Anonymisierungs-Anleitung
+├── sparkasse-lzo-mt940.csv    # ✅ Sparkasse/LZO - MT940 Format
+├── sparkasse-lzo-camt-v2.csv  # (geplant) Sparkasse/LZO - CAMT V2
+├── sparkasse-lzo-camt-v8.csv  # (geplant) Sparkasse/LZO - CAMT V8
+├── volksbank.csv              # (noch nicht vorhanden)
+├── dkb.csv                    # (noch nicht vorhanden)
+├── ing.csv                    # (noch nicht vorhanden)
+├── n26.csv                    # (noch nicht vorhanden)
 └── ...
 ```
+
+**Hinweis:** Manche Banken bieten mehrere Export-Formate an (z.B. MT940, CAMT).
+In diesem Fall erstellen wir separate Dateien pro Format.
 
 ---
 
@@ -83,6 +88,41 @@ Jede Bank hat ihr eigenes CSV-Format. Typische Unterschiede:
 | **Besonderheiten** | Mehrzeilig, HTML, Sonderzeichen |
 
 **RechnungsPilot wird alle gängigen Formate unterstützen!**
+
+---
+
+## 🔄 Mehrere Formate pro Bank
+
+Manche Banken bieten verschiedene Export-Formate an:
+
+### **MT940 (SWIFT Message Type 940)**
+- Standard-Format für elektronische Kontoauszüge
+- Ursprünglich für SWIFT-Nachrichten entwickelt
+- Viele Sparkassen und Banken bieten CSV-Export im MT940-Format
+- **Beispiel:** `sparkasse-lzo-mt940.csv`
+
+### **CAMT (Cash Management - ISO 20022)**
+- Moderner Standard für Zahlungsverkehr
+- ISO 20022 XML-basiert, aber einige Banken bieten CSV-Varianten
+- **Versionen:** V2, V8 (unterschiedliche Schema-Versionen)
+- **Beispiel:** `sparkasse-lzo-camt-v2.csv`, `sparkasse-lzo-camt-v8.csv`
+
+### **Andere Formate**
+- **Eigenformate** - Bank-spezifische CSV-Strukturen
+- **SEPA PAIN** - Payment Initiation (selten als CSV)
+- **Umsatzliste** - Vereinfachte Formate für Privatkunden
+
+**Namenskonvention bei mehreren Formaten:**
+```
+<bank>-<format>.csv         # Bei einem Format
+<bank>-<format>-<version>.csv  # Bei mehreren Versionen
+```
+
+**Beispiele:**
+- `sparkasse-lzo-mt940.csv`
+- `sparkasse-lzo-camt-v2.csv`
+- `dkb-standard.csv` (wenn nur ein Format)
+- `volksbank-mt940.csv`
 
 ---
 
@@ -124,13 +164,20 @@ def test_sparkasse_import():
 
 ## 📊 Status-Übersicht
 
-| Bank | CSV vorhanden | Parser implementiert | Getestet |
-|------|---------------|----------------------|----------|
-| Sparkasse/LZO | ✅ | ❌ | ❌ |
-| Volksbank | ❌ | ❌ | ❌ |
-| DKB | ❌ | ❌ | ❌ |
-| ING | ❌ | ❌ | ❌ |
-| N26 | ❌ | ❌ | ❌ |
+| Bank | Format | CSV vorhanden | Parser implementiert | Getestet |
+|------|--------|---------------|----------------------|----------|
+| Sparkasse/LZO | MT940 | ✅ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V2 | ⏳ | ❌ | ❌ |
+| Sparkasse/LZO | CAMT V8 | ⏳ | ❌ | ❌ |
+| Volksbank | - | ❌ | ❌ | ❌ |
+| DKB | - | ❌ | ❌ | ❌ |
+| ING | - | ❌ | ❌ | ❌ |
+| N26 | - | ❌ | ❌ | ❌ |
+
+**Legende:**
+- ✅ Vorhanden
+- ⏳ Geplant
+- ❌ Noch offen
 
 **Hilf mit, diese Tabelle mit ✅ zu füllen!**
 
