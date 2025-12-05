@@ -122,17 +122,21 @@ Jede Bank-CSV, die du beiträgst, hilft:
 
 ## 📊 Status-Übersicht
 
-Aktuelle Anzahl unterstützter Banken: **1 / 10+** 🎉
+Aktuelle Anzahl unterstützter Banken: **1 Bank, 3 Formate** 🎉
 
-| Bank | Status |
-|------|--------|
-| ✅ Sparkasse/LZO | CSV vorhanden |
-| ⏳ Volksbank | Noch offen |
-| ⏳ DKB | Noch offen |
-| ⏳ ING | Noch offen |
-| ⏳ N26 | Noch offen |
+| Bank | Format | Status |
+|------|--------|--------|
+| ✅ Sparkasse/LZO | MT940 | CSV vorhanden |
+| ✅ Sparkasse/LZO | CAMT V2 | CSV vorhanden |
+| ✅ Sparkasse/LZO | CAMT V8 | CSV vorhanden |
+| ⏳ Volksbank | - | Noch offen |
+| ⏳ DKB | - | Noch offen |
+| ⏳ ING | - | Noch offen |
+| ⏳ N26 | - | Noch offen |
 
-**Die erste Bank ist dabei! Wer trägt die nächste bei?** 🚀
+**Die erste Bank ist dabei - gleich mit 3 Formaten! 🚀**
+
+**Hinweis:** Manche Banken bieten mehrere Export-Formate an (MT940, CAMT). Du kannst gerne alle Formate beitragen, die deine Bank anbietet!
 
 ---
 
