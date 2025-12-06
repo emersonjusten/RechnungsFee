@@ -2086,11 +2086,21 @@ Transaktion markieren als:
 │  ├─ Verbindlichkeiten:        -  800,00 € │
 │  └─ Erwarteter Cashflow:      13.000,00 € │
 │                                            │
-│  [ Konten verwalten ]  [ Export ]          │
+│  🧾 Vorsteuer-Übersicht:                   │
+│  ├─ Vorsteuer lfd. Monat:     +  427,13 € │
+│  ├─ Vorsteuer Quartal (Q4):   +1.284,50 € │
+│  └─ Nächste UStVA: 10.01.2026              │
+│                                            │
+│  [ Konten verwalten ]  [ UStVA ]  [ Export ]│
 └────────────────────────────────────────────┘
 ```
 
 **Nur geschäftliche Transaktionen** aus allen Konten werden summiert!
+
+**Vorsteuer-Berechnung:**
+- Zeigt erwartete Vorsteuer (Rückforderung vom Finanzamt)
+- Berechnet aus allen geschäftlichen Ausgaben mit Vorsteuer
+- Hilft bei Cashflow-Planung (wann kommt Geld vom FA zurück)
 
 ---
 
@@ -2141,6 +2151,35 @@ CREATE TABLE auto_filter_regeln (
     vorschlag TEXT,  -- 'geschaeftlich', 'privat', 'privatentnahme'
     prioritaet INTEGER DEFAULT 0,
     aktiv BOOLEAN DEFAULT 1
+);
+
+-- Kategorien (für Vorsteuer-Berechnung erweitert)
+CREATE TABLE kategorien (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,  -- z.B. "Büromaterial"
+    konto_skr03 TEXT,    -- "4910"
+    konto_skr04 TEXT,    -- "6815"
+    vorsteuer_abzugsfaehig BOOLEAN DEFAULT 1,  -- ← NEU: Für Vorsteuer-Berechnung
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Rechnungen (Eingangs- und Ausgangsrechnungen)
+CREATE TABLE rechnungen (
+    id INTEGER PRIMARY KEY,
+    typ TEXT NOT NULL,  -- 'eingangsrechnung', 'ausgangsrechnung'
+    rechnungsnummer TEXT,
+    datum DATE NOT NULL,
+    partner TEXT,
+
+    netto_betrag DECIMAL,
+    umsatzsteuer_satz DECIMAL,       -- z.B. 19.00, 7.00, 0.00
+    umsatzsteuer_betrag DECIMAL,     -- ← Wichtig für Vorsteuer!
+    brutto_betrag DECIMAL,
+
+    kategorie_id INTEGER,
+    bezahlt BOOLEAN DEFAULT 0,
+
+    FOREIGN KEY (kategorie_id) REFERENCES kategorien(id)
 );
 ```
 
@@ -2248,6 +2287,100 @@ def calculate_business_cashflow():
     return cashflow
 ```
 
+**Vorsteuer-Berechnung:**
+
+```python
+def calculate_vorsteuer(zeitraum='monat', quartal=None):
+    """
+    Berechnet die erwartete Vorsteuer aus geschäftlichen Ausgaben.
+
+    Vorsteuer = Eingangsumsatzsteuer (gezahlte MwSt bei Einkäufen)
+    → Kann vom Finanzamt zurückgefordert werden
+    """
+    from datetime import datetime
+
+    # Zeitraum bestimmen
+    if zeitraum == 'monat':
+        start_date = datetime.now().replace(day=1)
+    elif zeitraum == 'quartal':
+        start_date = get_quarter_start(quartal)
+
+    # Alle geschäftlichen Ausgaben mit Vorsteuer holen
+    ausgaben = get_transactions(
+        datum_von=start_date,
+        ist_geschaeftlich=True,
+        betrag_lt=0  # Nur Ausgaben (negativ)
+    )
+
+    vorsteuer_gesamt = 0
+
+    for tx in ausgaben:
+        # Vorsteuer nur aus zugeordneten Eingangsrechnungen
+        if tx.rechnung_id:
+            rechnung = get_rechnung(tx.rechnung_id)
+
+            # Rechnung muss Vorsteuer enthalten
+            if rechnung.umsatzsteuer_betrag and rechnung.umsatzsteuer_betrag > 0:
+                vorsteuer_gesamt += rechnung.umsatzsteuer_betrag
+
+        # Alternative: Aus Transaktions-Kategorie schätzen (falls keine Rechnung)
+        elif tx.kategorie_id:
+            kategorie = get_kategorie(tx.kategorie_id)
+
+            # Nur wenn Kategorie "vorsteuerabzugsberechtigt" ist
+            if kategorie.vorsteuer_abzugsfaehig:
+                # Standard-Steuersatz 19% rückrechnen
+                brutto = abs(tx.betrag)
+                netto = brutto / 1.19
+                vorsteuer_gesamt += (brutto - netto)
+
+    return vorsteuer_gesamt
+
+
+def get_vorsteuer_overview():
+    """
+    Dashboard-Daten für Vorsteuer-Übersicht
+    """
+    aktueller_monat = calculate_vorsteuer(zeitraum='monat')
+    aktuelles_quartal = calculate_vorsteuer(
+        zeitraum='quartal',
+        quartal=get_current_quarter()
+    )
+    naechste_ustva = get_next_ustva_deadline()
+
+    return {
+        'monat': aktueller_monat,
+        'quartal': aktuelles_quartal,
+        'deadline': naechste_ustva,
+        'status': 'ausstehend' if naechste_ustva else 'eingereicht'
+    }
+```
+
+**Hinweise zur Vorsteuer-Berechnung:**
+
+1. **Nur bei Eingangsrechnungen:** Vorsteuer kann nur von Rechnungen mit ausgewiesener MwSt abgezogen werden
+2. **Kleinunternehmer:** Bei Kleinunternehmerregelung (§19 UStG) → keine Vorsteuer
+3. **Reverse-Charge:** Bei innergemeinschaftlichem Erwerb → separate Behandlung
+4. **Nicht abzugsfähig:**
+   - Private Ausgaben (bereits gefiltert durch ist_geschaeftlich=True)
+   - Kleinbetragsrechnungen ohne MwSt-Ausweis
+   - Ausländische Rechnungen ohne deutsche MwSt
+
+**Integration im Dashboard:**
+```python
+def get_cashflow_dashboard():
+    cashflow = calculate_business_cashflow()
+    vorsteuer = get_vorsteuer_overview()
+
+    return {
+        'konten': get_konten_uebersicht(),
+        'cashflow': cashflow,
+        'forderungen': get_offene_forderungen(),
+        'verbindlichkeiten': get_offene_verbindlichkeiten(),
+        'vorsteuer': vorsteuer  # ← NEU
+    }
+```
+
 ---
 
 ### **GoBD-Konformität**
@@ -2287,7 +2420,7 @@ def export_euer(jahr):
 
 ---
 
-**Status:** ✅ Private/Geschäftliche Trennung definiert - Kontotypen, Import-Filter, Auto-Vorschläge, Cashflow, GoBD-Konformität.
+**Status:** ✅ Private/Geschäftliche Trennung definiert - Kontotypen, Import-Filter, Auto-Vorschläge, Cashflow, Vorsteuer-Übersicht, GoBD-Konformität.
 
 ---
 
