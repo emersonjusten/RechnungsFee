@@ -1889,7 +1889,409 @@ Möchten Sie das Template anpassen?
 
 ---
 
-## **5.3 Technische Umsetzung**
+## **5.3 Private vs. Geschäftliche Transaktionen** ⚠️
+
+### **Grundprinzip: Strikte Trennung**
+
+**Zielgruppe:** Kleinbetriebe, Selbstständige, Freiberufler
+
+**GoBD-Anforderung:** Private Buchungen gehören **NICHT** ins Kassenbuch/in die Buchhaltung!
+
+**Ausnahmen:**
+- ✅ **Privatentnahmen** (Geld aus Geschäft → privat)
+- ✅ **Einlagen** (Geld aus privat → Geschäft)
+
+---
+
+### **Problem: Mischkonten**
+
+**Realität:** Viele Selbstständige nutzen **ein Konto** für privat + geschäftlich.
+
+**Herausforderung:**
+```
+Bank-CSV enthält:
+- Geschäftliche Transaktionen (gehören in RP)
+- Private Transaktionen (gehören NICHT in RP)
+- Privatentnahmen/Einlagen (gehören in RP, spezielle Kategorie)
+```
+
+**Lösung:** **Filter beim Import** - User markiert, was geschäftlich ist.
+
+---
+
+### **Kontotypen**
+
+**RechnungsPilot unterscheidet 3 Kontotypen:**
+
+| Typ | Beschreibung | Import-Verhalten |
+|-----|--------------|------------------|
+| **Geschäftskonto** | Nur geschäftliche Transaktionen | ✅ Alles importieren (außer explizit markiert) |
+| **Privatkonto** | Nur private Transaktionen | ❌ Nicht importierbar |
+| **Mischkonto** | Privat + Geschäftlich gemischt | ⚠️ User filtert beim Import |
+
+**Einstellung pro Konto:**
+```
+Konto: DE89370400440532013000 (Sparkasse)
+Typ: [ ] Geschäftskonto
+     [x] Mischkonto  ← User wählt beim ersten Import
+     [ ] Privatkonto
+```
+
+---
+
+### **Import-Workflow: Mischkonto**
+
+**Erweiterte Vorschau mit Filterung:**
+
+```
+┌──────────────────────────────────────────────────┐
+│ Bank-CSV importieren - Sparkasse (Mischkonto)   │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│  🔍 Format erkannt: Sparkasse/LZO MT940          │
+│                                                  │
+│  ⚠️ Dies ist ein Mischkonto (privat + geschäftl)│
+│     Bitte markieren Sie geschäftliche Buchungen: │
+│                                                  │
+│  ┌────────────────────────────────────────────┐  │
+│  │ Datum     Betrag    Partner        Status │  │
+│  ├────────────────────────────────────────────┤  │
+│  │ 05.12.25  -99,80 €  Amazon         [x] ✅ │ ← Geschäftlich
+│  │ 05.12.25 -850,00 €  Vermieter      [ ] ❌ │ ← Privat (Miete)
+│  │ 05.12.25  -10,57 €  Domain         [x] ✅ │ ← Geschäftlich
+│  │ 03.12.25  +67,50 €  Eva Schmidt    [ ] ❌ │ ← Privat
+│  │ 03.12.25 +119,00 €  Kunde GmbH     [x] ✅ │ ← Geschäftlich
+│  │ 01.12.25-1000,00 €  Privatentnahme [P] 💰 │ ← Privatentnahme
+│  └────────────────────────────────────────────┘  │
+│                                                  │
+│  Legende:                                        │
+│  [x] ✅ Geschäftlich (wird importiert)          │
+│  [ ] ❌ Privat (wird ignoriert)                 │
+│  [P] 💰 Privatentnahme/Einlage (wird importiert)│
+│                                                  │
+│  ⚙️ Auto-Vorschläge:                            │
+│     [x] Bekannte Partner automatisch markieren  │
+│     [x] Entscheidungen für zukünftige Imports   │
+│         merken                                   │
+│                                                  │
+│  📊 Statistik:                                   │
+│     Gesamt: 6 Transaktionen                     │
+│     Geschäftlich: 3 (werden importiert)         │
+│     Privat: 2 (werden ignoriert)                │
+│     Privatentnahme: 1 (wird importiert)         │
+│                                                  │
+│  [ Alle als geschäftlich ]  [ Importieren ]     │
+│  [ Alle als privat ]        [ Abbrechen ]       │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+### **Automatische Vorschläge (Smart Filter)**
+
+**System lernt aus bisherigen Entscheidungen:**
+
+```python
+# Beispiel: Amazon wurde schon 10x als "geschäftlich" markiert
+if partner == "Amazon" and previous_decisions["Amazon"] >= 10:
+    suggest_as_business = True
+
+# Beispiel: "Miete" im Verwendungszweck → meist privat
+if "miete" in verwendungszweck.lower() and not is_office_rent():
+    suggest_as_private = True
+```
+
+**User-spezifische Regeln:**
+```
+Partner "Edeka" → Privat (Lebensmittel)
+Partner "Edeka" + Verwendungszweck "Büro" → Geschäftlich (Bürokaffee)
+Partner "Telekom" → Geschäftlich (Geschäftstelefon)
+```
+
+**Konfigurierbares Regelwerk:**
+```
+┌────────────────────────────────────────┐
+│ Auto-Filter Regeln                     │
+├────────────────────────────────────────┤
+│ Partner enthält "GmbH" → Geschäftlich  │
+│ Partner "Vermieter" → Privat           │
+│ Verwendung "Privatentnahme" → [P]      │
+│ Verwendung "Einlage" → [P]             │
+│                                        │
+│ [ Neue Regel hinzufügen ]              │
+└────────────────────────────────────────┘
+```
+
+---
+
+### **Privatentnahmen & Einlagen**
+
+**Spezialbehandlung:**
+
+**Privatentnahme:**
+```
+Datum: 01.12.2025
+Betrag: -1.000,00 €
+Partner: (leer)
+Verwendungszweck: "Privatentnahme Dezember"
+→ Kategorie: "Privatentnahme" (SKR03: 1800, SKR04: 1200)
+→ Wird in EÜR erfasst
+→ Reduziert Geschäftsguthaben
+```
+
+**Einlage:**
+```
+Datum: 15.01.2025
+Betrag: +5.000,00 €
+Partner: (leer)
+Verwendungszweck: "Einlage Startkapital"
+→ Kategorie: "Einlage" (SKR03: 1800, SKR04: 1200)
+→ Wird in EÜR erfasst
+→ Erhöht Geschäftsguthaben
+```
+
+**UI-Unterstützung:**
+```
+Transaktion markieren als:
+[ ] Geschäftlich
+[x] Privatentnahme
+[ ] Einlage
+[ ] Privat (ignorieren)
+```
+
+---
+
+### **Kontenübergreifender Cashflow** 💰
+
+**Problem:** User hat mehrere Konten:
+- Geschäftskonto (Sparkasse): 10.000 €
+- Mischkonto (PayPal): 2.000 € (davon 1.500 € geschäftlich)
+
+**Frage:** Wie viel **Geschäftsgeld** habe ich insgesamt?
+
+**Lösung: Business-Cashflow Dashboard**
+
+```
+┌────────────────────────────────────────────┐
+│ Geschäftlicher Cashflow (Alle Konten)     │
+├────────────────────────────────────────────┤
+│                                            │
+│  Sparkasse Geschäftskonto:    10.000,00 € │
+│  PayPal (nur geschäftlich):    1.500,00 € │
+│  ─────────────────────────────────────────│
+│  Gesamt verfügbar:            11.500,00 € │
+│                                            │
+│  📊 Details:                               │
+│  ├─ Forderungen offen:        +2.300,00 € │
+│  ├─ Verbindlichkeiten:        -  800,00 € │
+│  └─ Erwarteter Cashflow:      13.000,00 € │
+│                                            │
+│  [ Konten verwalten ]  [ Export ]          │
+└────────────────────────────────────────────┘
+```
+
+**Nur geschäftliche Transaktionen** aus allen Konten werden summiert!
+
+---
+
+### **Datenbank-Erweiterung**
+
+```sql
+-- Konten-Definition
+CREATE TABLE konten (
+    id INTEGER PRIMARY KEY,
+    bank TEXT NOT NULL,
+    iban TEXT UNIQUE NOT NULL,
+    kontotyp TEXT NOT NULL,  -- 'geschaeftlich', 'mischkonto', 'privat'
+    name TEXT,  -- z.B. "Hauptgeschäftskonto", "PayPal Business"
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Bank-Transaktionen (erweitert)
+CREATE TABLE bank_transaktionen (
+    id INTEGER PRIMARY KEY,
+    konto_id INTEGER NOT NULL,  -- Verknüpfung zu Konto
+    import_id INTEGER,
+    datum DATE NOT NULL,
+    betrag DECIMAL NOT NULL,
+    partner TEXT,
+    verwendungszweck TEXT,
+
+    -- NEU: Geschäftlich-Markierung
+    ist_geschaeftlich BOOLEAN DEFAULT 1,  -- 1 = geschäftlich, 0 = privat
+    ist_privatentnahme BOOLEAN DEFAULT 0,
+    ist_einlage BOOLEAN DEFAULT 0,
+
+    -- Auto-Filter
+    auto_vorschlag TEXT,  -- 'geschaeftlich', 'privat', 'privatentnahme'
+    user_ueberschrieben BOOLEAN DEFAULT 0,  -- User hat Vorschlag geändert
+
+    kategorie_id INTEGER,
+    rechnung_id INTEGER,
+
+    FOREIGN KEY (konto_id) REFERENCES konten(id),
+    FOREIGN KEY (import_id) REFERENCES bank_imports(id)
+);
+
+-- Auto-Filter-Regeln (User-spezifisch)
+CREATE TABLE auto_filter_regeln (
+    id INTEGER PRIMARY KEY,
+    partner_pattern TEXT,  -- z.B. "%GmbH%", "Amazon"
+    verwendungszweck_pattern TEXT,
+    vorschlag TEXT,  -- 'geschaeftlich', 'privat', 'privatentnahme'
+    prioritaet INTEGER DEFAULT 0,
+    aktiv BOOLEAN DEFAULT 1
+);
+```
+
+---
+
+### **Import-Logik (Pseudocode)**
+
+```python
+def import_bank_csv(csv_file, konto_id):
+    konto = get_konto(konto_id)
+    template = detect_template(csv_file)
+    df = parse_csv(csv_file, template)
+
+    # Schritt 1: Auto-Vorschläge generieren
+    for row in df:
+        row['auto_vorschlag'] = suggest_transaction_type(
+            partner=row['partner'],
+            verwendungszweck=row['verwendungszweck'],
+            konto_typ=konto.kontotyp
+        )
+
+    # Schritt 2: Bei Mischkonto → User-Review
+    if konto.kontotyp == 'mischkonto':
+        df = user_review_transactions(df)  # UI-Dialog
+
+    # Schritt 3: Nur geschäftliche Transaktionen importieren
+    df_business = df[
+        (df['ist_geschaeftlich'] == True) |
+        (df['ist_privatentnahme'] == True) |
+        (df['ist_einlage'] == True)
+    ]
+
+    # Schritt 4: Import
+    for row in df_business:
+        save_transaction(row)
+
+    # Schritt 5: Regeln aktualisieren (Lernen)
+    update_auto_filter_rules(df)
+
+def suggest_transaction_type(partner, verwendungszweck, konto_typ):
+    # Geschäftskonto: Alles ist geschäftlich (default)
+    if konto_typ == 'geschaeftlich':
+        return 'geschaeftlich'
+
+    # Mischkonto: Intelligente Vorschläge
+    if konto_typ == 'mischkonto':
+        # 1. Explizite Keywords
+        if 'privatentnahme' in verwendungszweck.lower():
+            return 'privatentnahme'
+        if 'einlage' in verwendungszweck.lower():
+            return 'einlage'
+
+        # 2. User-Regeln prüfen
+        for regel in get_auto_filter_regeln():
+            if matches_pattern(partner, regel.partner_pattern):
+                return regel.vorschlag
+
+        # 3. Historische Entscheidungen
+        history = get_partner_history(partner)
+        if history.count('geschaeftlich') > 5:
+            return 'geschaeftlich'
+        if history.count('privat') > 5:
+            return 'privat'
+
+        # 4. Heuristiken
+        if 'GmbH' in partner or 'AG' in partner:
+            return 'geschaeftlich'
+        if partner in ['Vermieter', 'Edeka', 'Rewe']:
+            return 'privat'
+
+    # Default: Unsicher → User muss entscheiden
+    return None
+```
+
+---
+
+### **Cashflow-Berechnung**
+
+```python
+def calculate_business_cashflow():
+    """
+    Summiert alle geschäftlichen Salden über alle Konten
+    """
+    cashflow = 0
+
+    for konto in get_all_konten():
+        if konto.kontotyp == 'privat':
+            continue  # Privatkonten ignorieren
+
+        # Letzte Transaktion mit Saldo holen
+        last_tx = get_last_transaction(konto.id)
+
+        if konto.kontotyp == 'geschaeftlich':
+            # Geschäftskonto: Gesamtsaldo
+            cashflow += last_tx.saldo
+
+        elif konto.kontotyp == 'mischkonto':
+            # Mischkonto: Nur geschäftliche Transaktionen summieren
+            business_txs = get_transactions(
+                konto_id=konto.id,
+                ist_geschaeftlich=True
+            )
+            cashflow += sum(tx.betrag for tx in business_txs)
+
+    return cashflow
+```
+
+---
+
+### **GoBD-Konformität**
+
+**Wichtig:** Private Transaktionen dürfen **nicht** in Export-Dateien auftauchen!
+
+**DATEV-Export:**
+```python
+def export_datev(zeitraum):
+    # Nur geschäftliche Transaktionen exportieren
+    transaktionen = get_transactions(
+        zeitraum=zeitraum,
+        ist_geschaeftlich=True  # ← Kritisch!
+    )
+    # Privatentnahmen/Einlagen WERDEN exportiert (Konto 1800)
+    return generate_datev_csv(transaktionen)
+```
+
+**EÜR-Export:**
+```python
+def export_euer(jahr):
+    einnahmen = sum(
+        betrag for tx in get_transactions(jahr)
+        if tx.ist_geschaeftlich and tx.betrag > 0
+    )
+    ausgaben = sum(
+        betrag for tx in get_transactions(jahr)
+        if tx.ist_geschaeftlich and tx.betrag < 0
+    )
+    privatentnahmen = sum(
+        betrag for tx in get_transactions(jahr)
+        if tx.ist_privatentnahme
+    )
+    # Private Transaktionen werden NICHT berücksichtigt
+    return einnahmen - ausgaben - privatentnahmen
+```
+
+---
+
+**Status:** ✅ Private/Geschäftliche Trennung definiert - Kontotypen, Import-Filter, Auto-Vorschläge, Cashflow, GoBD-Konformität.
+
+---
+
+## **5.4 Technische Umsetzung**
 
 ### **Datenbank-Schema**
 
@@ -2009,7 +2411,7 @@ class BankCSVParser:
 
 ---
 
-## **5.4 MVP-Umfang**
+## **5.5 MVP-Umfang**
 
 **Für Version 1.0:**
 
