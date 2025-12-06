@@ -1536,9 +1536,512 @@ function DatevExport() {
 
 ---
 
+# Kategorie 5: Bank-Integration (CSV-Import)
+
+## **Übersicht**
+
+**Ziel:** Bank-Transaktionen automatisch importieren, um Zahlungsabgleich und Einnahmen-/Ausgaben-Erfassung zu vereinfachen.
+
+**Herausforderungen:**
+- ❌ **Jede Bank hat eigenes CSV-Format** (Sparkasse ≠ Volksbank ≠ DKB ≠ N26 ≠ PayPal)
+- ❌ **Manche Banken bieten mehrere Formate** (MT940, CAMT V2, CAMT V8)
+- ❌ **User kennen Formate nicht** - "MT940" sagt normalen Usern nichts
+- ❌ **Power-User brauchen Workaround** für noch nicht unterstützte Banken
+
+**Lösung:** Kombination aus **Automatischer Erkennung** + **Template-System**
+
+---
+
+## **5.1 Automatische Format-Erkennung**
+
+### **Wie funktioniert's?**
+
+**Schritt 1: CSV-Datei analysieren**
+```python
+def detect_bank_format(csv_file):
+    # 1. Delimiter erkennen (;, ,, Tab)
+    delimiter = detect_delimiter(csv_file)
+
+    # 2. Header-Zeile auslesen
+    header = read_first_line(csv_file, delimiter)
+
+    # 3. Mit bekannten Templates matchen
+    for template in BANK_TEMPLATES:
+        if match_score(header, template.header) > 0.8:
+            return template
+
+    # 4. Fallback: "Unbekanntes Format"
+    return None
+```
+
+**Matching-Kriterien:**
+- **Spaltennamen:** `"Auftragskonto"` → Sparkasse/LZO
+- **Spaltenanzahl:** 11 Spalten → MT940, 17 Spalten → CAMT, 41 Spalten → PayPal
+- **Delimiter:** `;` (Sparkasse), `,` (Volksbank, PayPal)
+- **Typische Felder:** `"Buchungstag"`, `"Valutadatum"`, `"Betrag"`
+
+**Beispiel:**
+```
+CSV Header: "Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext"...
+           ↓
+Match: Sparkasse/LZO MT940 (90% Übereinstimmung)
+```
+
+---
+
+## **5.2 Template-System** ⭐
+
+### **Warum Template-System?**
+
+✅ **Für Normal-User:** Automatisch → Keine Ahnung von Formaten nötig
+✅ **Für Power-User:** Eigenes Template erstellen → Jede Bank unterstützbar
+✅ **Community-getrieben:** Templates teilen → Schnell alle Banken abdecken
+
+---
+
+### **Template-Struktur**
+
+**JSON-Format:**
+```json
+{
+  "id": "sparkasse-lzo-mt940",
+  "name": "Sparkasse/LZO - MT940 Format",
+  "bank": "Sparkasse/LZO",
+  "format": "MT940",
+  "version": "1.0",
+  "author": "RechnungsPilot Team",
+  "delimiter": ";",
+  "encoding": "UTF-8",
+  "decimal_separator": ",",
+  "date_format": "DD.MM.YY",
+
+  "column_mapping": {
+    "datum": "Buchungstag",
+    "valuta": "Valutadatum",
+    "buchungstext": "Buchungstext",
+    "verwendungszweck": "Verwendungszweck",
+    "partner": "Beguenstigter/Zahlungspflichtiger",
+    "betrag": "Betrag",
+    "waehrung": "Währung",
+    "iban": "Kontonummer",
+    "bic": "BLZ",
+    "saldo": "Saldo",
+    "info": "Info"
+  },
+
+  "field_types": {
+    "datum": "date",
+    "betrag": "decimal",
+    "saldo": "decimal"
+  },
+
+  "validation": {
+    "required_columns": ["Buchungstag", "Betrag", "Währung"],
+    "min_columns": 10,
+    "max_columns": 12
+  },
+
+  "example_csv": "vorlagen/bank-csv/sparkasse-lzo-mt940.csv"
+}
+```
+
+**Template-Felder Erklärung:**
+
+| Feld | Bedeutung | Beispiel |
+|------|-----------|----------|
+| **id** | Eindeutige Template-ID | `sparkasse-lzo-mt940` |
+| **name** | Anzeigename für User | `Sparkasse/LZO - MT940 Format` |
+| **bank** | Bankname | `Sparkasse/LZO` |
+| **format** | Format-Typ (optional) | `MT940`, `CAMT V2`, `Standard` |
+| **delimiter** | Trennzeichen | `;`, `,`, `\t` |
+| **encoding** | Zeichensatz | `UTF-8`, `ISO-8859-1`, `Windows-1252` |
+| **decimal_separator** | Dezimaltrennzeichen | `,` (1.234,56) oder `.` (1,234.56) |
+| **date_format** | Datumsformat | `DD.MM.YYYY`, `YYYY-MM-DD` |
+| **column_mapping** | CSV-Spalte → RP-Feld | `"Buchungstag"` → `datum` |
+| **field_types** | Datentypen | `date`, `decimal`, `string` |
+| **validation** | Erkennungs-Regeln | Min/Max Spalten, Pflichtfelder |
+
+---
+
+### **User-Workflows**
+
+#### **Workflow A: Normal-User (Automatik)**
+
+```
+1. User: "Datei importieren" klicken
+   ↓
+2. CSV hochladen
+   ↓
+3. System: Automatische Erkennung
+   ✅ "Sparkasse/LZO MT940 erkannt" (90% Match)
+   ↓
+4. Vorschau anzeigen:
+   ┌─────────────────────────────────┐
+   │ 10 Transaktionen gefunden       │
+   │ 05.12.25  -99,80 €  Amazon      │
+   │ 05.12.25  -10,57 €  Domain      │
+   │ ...                             │
+   └─────────────────────────────────┘
+   ↓
+5. User: "Importieren" → Fertig! ✅
+```
+
+**Kein Wissen über MT940 nötig!** 🎯
+
+---
+
+#### **Workflow B: Power-User (Eigenes Template)**
+
+**Situation:** Bank noch nicht unterstützt (z.B. "Sparda-Bank")
+
+```
+1. User: CSV importieren
+   ↓
+2. System: "❌ Unbekanntes Format - Möchten Sie ein Template erstellen?"
+   ↓
+3. Template-Editor öffnen:
+
+   ┌──────────────────────────────────────────┐
+   │ Neues Template erstellen                 │
+   ├──────────────────────────────────────────┤
+   │ Bankname: [Sparda-Bank            ]     │
+   │ Format:   [Standard              ]     │
+   │                                          │
+   │ CSV-Vorschau (erste 3 Zeilen):          │
+   │ Datum;Partner;Verwendung;Betrag;EUR     │
+   │ 01.12.25;Amazon;Einkauf;-99,80;EUR      │
+   │ 03.12.25;Firma;Rechnung;-10,57;EUR      │
+   │                                          │
+   │ Spalten-Mapping:                         │
+   │ [Datum        ] → Buchungstag     ▼     │
+   │ [Partner      ] → Partner          ▼     │
+   │ [Verwendung   ] → Verwendungszweck ▼     │
+   │ [Betrag       ] → Betrag           ▼     │
+   │ [EUR          ] → Währung          ▼     │
+   │                                          │
+   │ Trennzeichen: [ ; ]   Encoding: [UTF-8]  │
+   │ Dezimal:      [ , ]   Datum: [DD.MM.YY]  │
+   │                                          │
+   │ [ Testen ]  [ Speichern ]  [ Abbrechen ] │
+   └──────────────────────────────────────────┘
+
+4. User mapped Spalten per Dropdown
+   ↓
+5. "Testen" → Vorschau mit Mapping
+   ↓
+6. "Speichern" → Template gespeichert
+   ↓
+7. Nächster Import: Automatisch erkannt! ✅
+```
+
+---
+
+### **Template-Speicherorte**
+
+**Zwei Ebenen:**
+
+1. **System-Templates** (vorinstalliert):
+   ```
+   /app/templates/banks/
+   ├── sparkasse-lzo-mt940.json
+   ├── sparkasse-lzo-camt-v2.json
+   ├── sparkasse-lzo-camt-v8.json
+   ├── paypal.json
+   ├── volksbank.json
+   ├── dkb.json
+   └── ...
+   ```
+
+2. **User-Templates** (selbst erstellt):
+   ```
+   ~/.rechnungspilot/templates/
+   ├── sparda-bank.json
+   ├── targobank.json
+   └── ...
+   ```
+
+**Priorität:** User-Templates > System-Templates
+
+---
+
+### **Template-Sharing (Community)**
+
+**Power-User können Templates mit Community teilen:**
+
+**Workflow:**
+```
+1. User erstellt Template für "Targobank"
+   ↓
+2. In App: "Template teilen" → Export als JSON
+   ↓
+3. GitHub Issue erstellen:
+   - Template: "Targobank Standard-Format"
+   - JSON-Datei anhängen
+   - Beispiel-CSV (anonymisiert) anhängen
+   ↓
+4. Maintainer prüft & fügt hinzu:
+   - Template → /app/templates/banks/targobank.json
+   - Beispiel → vorlagen/bank-csv/targobank.csv
+   ↓
+5. Nächstes Release: Targobank für alle verfügbar! ✅
+```
+
+**Benefits:**
+- ✅ Community trägt bei → Schnell viele Banken unterstützt
+- ✅ Power-User helfen Normal-Usern
+- ✅ Keine Programmier-Kenntnisse nötig
+
+---
+
+### **Template-Validierung**
+
+**Automatische Tests beim Import:**
+
+```python
+def validate_template(template, csv_file):
+    checks = []
+
+    # 1. Pflichtfelder vorhanden?
+    for required in template.validation.required_columns:
+        if required not in csv_header:
+            checks.append(f"❌ Pflichtfeld '{required}' fehlt")
+
+    # 2. Spaltenanzahl stimmt?
+    if not (template.min_columns <= len(csv_header) <= template.max_columns):
+        checks.append(f"❌ Falsche Spaltenanzahl: {len(csv_header)}")
+
+    # 3. Delimiter korrekt?
+    if detected_delimiter != template.delimiter:
+        checks.append(f"⚠️ Trennzeichen: '{detected_delimiter}' statt '{template.delimiter}'")
+
+    # 4. Datentypen passen?
+    if not parse_date(sample_row['datum'], template.date_format):
+        checks.append(f"❌ Datumsformat '{template.date_format}' passt nicht")
+
+    return checks
+```
+
+**Fehlerbehandlung:**
+```
+❌ Template-Fehler erkannt:
+- Pflichtfeld 'Buchungstag' fehlt
+- Datumsformat 'DD.MM.YYYY' passt nicht (Ist: YYYY-MM-DD)
+
+Möchten Sie das Template anpassen?
+[ Template editieren ]  [ Abbrechen ]
+```
+
+---
+
+### **UI-Konzept**
+
+**Import-Dialog:**
+
+```
+┌─────────────────────────────────────────────┐
+│ Bank-CSV importieren                        │
+├─────────────────────────────────────────────┤
+│                                             │
+│  [ Datei auswählen ]  sparkasse.csv         │
+│                                             │
+│  🔍 Format erkannt: Sparkasse/LZO MT940     │
+│     (90% Übereinstimmung)                   │
+│                                             │
+│  ┌────────────────────────────────────────┐ │
+│  │ Vorschau (10 Transaktionen):           │ │
+│  ├────────────────────────────────────────┤ │
+│  │ 05.12.25  -99,80 €  Amazon Payments   │ │
+│  │ 05.12.25  -10,57 €  Domain Provider    │ │
+│  │ 05.12.25   -5,95 €  LZO Kontoführung  │ │
+│  │ 03.12.25  +67,50 €  Eva Schmidt       │ │
+│  │ ...                                    │ │
+│  └────────────────────────────────────────┘ │
+│                                             │
+│  ⚙️ Erweiterte Optionen:                    │
+│     [ ] Duplikate automatisch erkennen      │
+│     [ ] Automatisch kategorisieren          │
+│     [ ] Mit Rechnungen abgleichen           │
+│                                             │
+│  [ Importieren ]  [ Template anpassen ]     │
+│                   [ Abbrechen ]             │
+└─────────────────────────────────────────────┘
+```
+
+**Bei unbekanntem Format:**
+```
+┌─────────────────────────────────────────────┐
+│ Bank-CSV importieren                        │
+├─────────────────────────────────────────────┤
+│                                             │
+│  [ Datei auswählen ]  sparda.csv            │
+│                                             │
+│  ❌ Format nicht erkannt                    │
+│     (Keine Übereinstimmung mit bekannten    │
+│      Templates)                             │
+│                                             │
+│  Möchten Sie ein Template erstellen?        │
+│                                             │
+│  [ Template-Editor öffnen ]                 │
+│  [ Manuelle Zuordnung ]                     │
+│  [ Abbrechen ]                              │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## **5.3 Technische Umsetzung**
+
+### **Datenbank-Schema**
+
+```sql
+-- Bank-Templates
+CREATE TABLE bank_templates (
+    id TEXT PRIMARY KEY,  -- z.B. "sparkasse-lzo-mt940"
+    name TEXT NOT NULL,
+    bank TEXT NOT NULL,
+    format TEXT,
+    version TEXT,
+    author TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_system_template BOOLEAN DEFAULT 0,  -- 0 = User, 1 = System
+    config_json TEXT NOT NULL  -- Vollständige Template-Config als JSON
+);
+
+-- Importierte Transaktionen
+CREATE TABLE bank_transaktionen (
+    id INTEGER PRIMARY KEY,
+    import_id INTEGER,  -- Verknüpfung zu Import-Batch
+    datum DATE NOT NULL,
+    valuta DATE,
+    buchungstext TEXT,
+    verwendungszweck TEXT,
+    partner TEXT,
+    betrag DECIMAL NOT NULL,
+    waehrung TEXT DEFAULT 'EUR',
+    iban TEXT,
+    bic TEXT,
+    saldo DECIMAL,
+    info TEXT,
+    kategorie_id INTEGER,  -- Automatische Kategorisierung
+    rechnung_id INTEGER,  -- Automatischer Zahlungsabgleich
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (import_id) REFERENCES bank_imports(id),
+    FOREIGN KEY (kategorie_id) REFERENCES kategorien(id),
+    FOREIGN KEY (rechnung_id) REFERENCES rechnungen(id)
+);
+
+-- Import-Batches (Tracking)
+CREATE TABLE bank_imports (
+    id INTEGER PRIMARY KEY,
+    template_id TEXT NOT NULL,
+    dateiname TEXT,
+    anzahl_zeilen INTEGER,
+    erfolg INTEGER,
+    fehler INTEGER,
+    duplikate INTEGER,
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (template_id) REFERENCES bank_templates(id)
+);
+```
+
+---
+
+### **Parser-Architektur**
+
+```python
+class BankCSVParser:
+    def __init__(self, csv_file, template=None):
+        self.csv_file = csv_file
+        self.template = template or self.detect_template()
+
+    def detect_template(self):
+        """Automatische Format-Erkennung"""
+        header = self.read_header()
+
+        for template in load_all_templates():
+            if self.match_template(header, template) > 0.8:
+                return template
+
+        return None
+
+    def match_template(self, header, template):
+        """Berechne Match-Score (0.0 - 1.0)"""
+        required_cols = template.validation.required_columns
+        found = sum(1 for col in required_cols if col in header)
+        return found / len(required_cols)
+
+    def parse(self):
+        """Parse CSV mit Template"""
+        df = pd.read_csv(
+            self.csv_file,
+            sep=self.template.delimiter,
+            encoding=self.template.encoding,
+            decimal=self.template.decimal_separator
+        )
+
+        # Column-Mapping anwenden
+        df.rename(columns=self.template.column_mapping, inplace=True)
+
+        # Datentypen konvertieren
+        df['datum'] = pd.to_datetime(df['datum'], format=self.template.date_format)
+        df['betrag'] = df['betrag'].astype(float)
+
+        return df
+
+    def validate(self, df):
+        """Validierung nach Import"""
+        errors = []
+
+        # Duplikate erkennen
+        duplicates = self.find_duplicates(df)
+        if duplicates:
+            errors.append(f"{len(duplicates)} Duplikate gefunden")
+
+        # Fehlende Pflichtfelder
+        for required in ['datum', 'betrag']:
+            if df[required].isna().any():
+                errors.append(f"Pflichtfeld '{required}' hat leere Werte")
+
+        return errors
+```
+
+---
+
+## **5.4 MVP-Umfang**
+
+**Für Version 1.0:**
+
+✅ **System-Templates:**
+- Sparkasse/LZO (MT940, CAMT V2, CAMT V8)
+- PayPal
+- Volksbank
+- DKB
+- ING
+- N26
+
+✅ **Features:**
+- Automatische Format-Erkennung
+- Template-Editor für Power-User
+- CSV-Vorschau vor Import
+- Duplikat-Erkennung
+- Automatischer Zahlungsabgleich (mit Rechnungen)
+
+⏳ **Post-MVP:**
+- Template-Sharing via GitHub
+- Automatische Kategorisierung (ML)
+- Multi-File-Import (mehrere CSVs auf einmal)
+- Bank-API-Integration (Live-Anbindung)
+
+---
+
+**Status:** ✅ Vollständig geklärt - Template-System, Automatische Erkennung, User-Workflows, Technische Umsetzung definiert.
+
+---
+
 ### **Noch zu klären (siehe fragen.md):**
 
-- Kategorie 5: Bank-Integration
 - Kategorie 6: UStVA (Details)
 - Kategorie 7: EÜR
 - Kategorie 8: Stammdaten-Erfassung
@@ -1775,6 +2278,20 @@ RechnungsPilot/
 - Optionale vs. empfohlene Felder dokumentiert
 - Häufige Irrtümer aufgeklärt (keine Signatur-Pflicht, kein BIC nötig)
 - Validierungs-Beispiele (Errors vs. Warnings) hinzugefügt
+
+### **2025-12-05 - Kategorie 5 (Bank-Integration) geklärt**
+- Template-System für CSV-Import konzipiert (JSON-basiert)
+- Automatische Format-Erkennung definiert (Header-Matching, 80%+ Threshold)
+- User-Workflows dokumentiert: Normal-User (Automatik) vs Power-User (Template-Editor)
+- Template-Struktur spezifiziert: Column-Mapping, Validation, Encoding, Delimiter
+- Template-Speicherorte: System-Templates + User-Templates
+- Template-Sharing via GitHub für Community-Beiträge
+- UI-Konzepte: Import-Dialog, Template-Editor, Vorschau
+- Datenbank-Schema: bank_templates, bank_transaktionen, bank_imports
+- Parser-Architektur (Python + pandas) skizziert
+- MVP-Umfang: 6 System-Templates (Sparkasse MT940/CAMT V2/V8, PayPal, Volksbank, DKB, ING, N26)
+- CSV-Beispiele gesammelt: Sparkasse/LZO (3 Formate), PayPal (anonymisiert)
+- Bank-CSV Community-Contribution-Mechanismus etabliert (Issue Template, MAINTAINER.md)
 
 ### **2025-12-04 - Kategorie 4 (DATEV-Export) geklärt**
 - Zentrales Kategorisierungssystem dokumentiert: Buchungstext = Master-Kategorie
