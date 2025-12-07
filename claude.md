@@ -2575,6 +2575,306 @@ class BankCSVParser:
 
 ---
 
+## **Kategorie 6: Umsatzsteuer-Voranmeldung (UStVA)**
+
+### **6.1 Strategie: Hybrid-Ansatz** ✅
+
+**Entscheidung:** Stufenweise Entwicklung
+
+#### **Version 1.0 (MVP): Zahlen vorbereiten** 📊
+
+**Funktionsweise:**
+- Software berechnet alle UStVA-Kennziffern aus Buchungen
+- Zeigt Übersicht mit allen Werten
+- User trägt Zahlen manuell ins ELSTER-Portal ein
+- Kein ELSTER-Zertifikat erforderlich
+
+**Vorteile für MVP:**
+- ✅ Schnell entwickelbar (nur Berechnung, kein ELSTER-API)
+- ✅ Kein rechtlicher Overhead (User submits selbst)
+- ✅ Kein Zertifikats-Management
+- ✅ User behält Kontrolle über Übermittlung
+- ✅ Weniger Komplexität für Version 1.0
+
+**Ausgabe:**
+```
+┌─────────────────────────────────────────────────┐
+│ Umsatzsteuer-Voranmeldung Dezember 2025        │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ Zeitraum: Dezember 2025 (monatlich)           │
+│ Steuernummer: 12/345/67890                     │
+│                                                 │
+│ UMSÄTZE                                         │
+│ ├─ Kz. 81  Umsätze 19% USt      15.890,00 €   │
+│ ├─ Kz. 83  → Umsatzsteuer 19%    3.019,10 €   │
+│ ├─ Kz. 86  Umsätze 7% USt        2.140,00 €   │
+│ ├─ Kz. 88  → Umsatzsteuer 7%       149,80 €   │
+│ └─ Kz. 35  § 13b UStG (Rev.Ch.)        0,00 € │
+│                                                 │
+│ VORSTEUER                                       │
+│ ├─ Kz. 66  Vorsteuer abzugsfähig 1.284,50 €   │
+│ └─ Kz. 61  § 13b UStG Vorsteuer        0,00 € │
+│                                                 │
+│ ─────────────────────────────────────────────── │
+│ Umsatzsteuer-Vorauszahlung (Soll):             │
+│                                   2.884,40 €   │
+│ ─────────────────────────────────────────────── │
+│                                                 │
+│ [ PDF drucken ]  [ In ELSTER eintragen ]       │
+└─────────────────────────────────────────────────┘
+```
+
+**User-Workflow:**
+```
+1. RechnungsPilot öffnen
+   → Menü: "UStVA erstellen"
+
+2. Zeitraum wählen
+   → Dezember 2025
+
+3. Berechnung prüfen
+   → Alle Kennziffern werden automatisch aus Buchungen berechnet
+   → Preview zeigt Aufschlüsselung
+
+4. PDF drucken/speichern
+   → Zum Nachschlagen/Dokumentation
+
+5. ELSTER-Portal öffnen
+   → https://www.elster.de einloggen
+
+6. Zahlen manuell eintragen
+   → Kz. 81: 15890,00
+   → Kz. 83: 3019,10
+   → etc.
+
+7. In ELSTER abschicken
+   → User übernimmt Verantwortung
+```
+
+---
+
+#### **Version 2.0 (später): ELSTER-Integration** 🤖
+
+**Funktionsweise:**
+- Software erstellt ELSTER-XML
+- Direkte Übermittlung ans Finanzamt
+- ELSTER-Zertifikat erforderlich
+
+**Zusätzliche Features:**
+- ✅ Ein-Klick-Übermittlung
+- ✅ Automatische XML-Generierung
+- ✅ ELSTER-Empfangsbestätigung
+- ✅ Status-Tracking (eingereicht, bestätigt, abgelehnt)
+
+**Workflow:**
+```
+1. RechnungsPilot öffnen
+   → UStVA erstellen
+
+2. Zeitraum wählen
+   → Dezember 2025
+
+3. Berechnung prüfen
+   → Preview
+
+4. [ An ELSTER übermitteln ]  ← Ein Klick!
+   → ELSTER-Zertifikat eingeben
+   → XML generieren + senden
+   → Fertig!
+```
+
+**Anforderungen für v2.0:**
+- ELSTER-API-Integration (ERiC SDK)
+- Zertifikats-Management
+- XML-Generierung (ELSTER-Format)
+- Fehlerbehandlung (Ablehnung, Nachforderung)
+
+---
+
+### **6.2 Berechnung der Kennziffern**
+
+**Wichtigste UStVA-Kennziffern:**
+
+#### **Umsätze (steuerpflichtig):**
+
+| Kz. | Beschreibung | Quelle | Berechnung |
+|-----|--------------|--------|------------|
+| **81** | Umsätze 19% USt | Ausgangsrechnungen | Summe Netto (USt-Satz 19%) |
+| **83** | Umsatzsteuer 19% | Auto-berechnet | Kz. 81 × 0,19 |
+| **86** | Umsätze 7% USt | Ausgangsrechnungen | Summe Netto (USt-Satz 7%) |
+| **88** | Umsatzsteuer 7% | Auto-berechnet | Kz. 86 × 0,07 |
+| **35** | § 13b UStG (Reverse Charge) | Ausgangsrechnungen | Summe Netto (Reverse Charge) |
+
+#### **Vorsteuer (abzugsfähig):**
+
+| Kz. | Beschreibung | Quelle | Berechnung |
+|-----|--------------|--------|------------|
+| **66** | Vorsteuer | Eingangsrechnungen | Summe USt-Betrag (abzugsfähig) |
+| **61** | § 13b UStG Vorsteuer | Eingangsrechnungen | Reverse Charge USt |
+
+#### **Zahllast/Erstattung:**
+
+| Kz. | Beschreibung | Berechnung |
+|-----|--------------|------------|
+| **83** | Summe Umsatzsteuer | Kz. 83 + Kz. 88 + ... |
+| **66** | Summe Vorsteuer | Kz. 66 + Kz. 61 |
+| **Zahllast** | **Vorauszahlung (Soll)** | **Kz. 83 - Kz. 66** |
+
+---
+
+### **6.3 Implementierung (MVP)**
+
+**Datenquellen:**
+
+```python
+def calculate_ustva(zeitraum):
+    """
+    Berechnet UStVA-Kennziffern aus Buchungen
+
+    Zeitraum: 'monat' oder 'quartal'
+    """
+    # 1. Ausgangsrechnungen (Umsätze)
+    ausgangsrechnungen = get_ausgangsrechnungen(
+        zeitraum=zeitraum,
+        status='bezahlt'  # Nur bezahlte (Ist-Versteuerung)
+    )
+
+    kz_81 = sum(
+        r.netto_betrag for r in ausgangsrechnungen
+        if r.umsatzsteuer_satz == 19.0
+    )
+    kz_83 = kz_81 * 0.19
+
+    kz_86 = sum(
+        r.netto_betrag for r in ausgangsrechnungen
+        if r.umsatzsteuer_satz == 7.0
+    )
+    kz_88 = kz_86 * 0.07
+
+    # 2. Eingangsrechnungen (Vorsteuer)
+    eingangsrechnungen = get_eingangsrechnungen(
+        zeitraum=zeitraum,
+        vorsteuer_abzugsfaehig=True
+    )
+
+    kz_66 = sum(r.umsatzsteuer_betrag for r in eingangsrechnungen)
+
+    # 3. Kassenbuch-Einnahmen (falls Bar)
+    kassenbuch_einnahmen = get_kassenbuch(
+        zeitraum=zeitraum,
+        art='einnahme'
+    )
+
+    kz_81 += sum(
+        k.netto_betrag for k in kassenbuch_einnahmen
+        if k.ust_satz == 19.0
+    )
+    # ... analog für 7%
+
+    # 4. Zahllast berechnen
+    umsatzsteuer_gesamt = kz_83 + kz_88
+    vorsteuer_gesamt = kz_66
+    zahllast = umsatzsteuer_gesamt - vorsteuer_gesamt
+
+    return {
+        'kz_81': kz_81,
+        'kz_83': kz_83,
+        'kz_86': kz_86,
+        'kz_88': kz_88,
+        'kz_66': kz_66,
+        'zahllast': zahllast,
+        'zeitraum': zeitraum
+    }
+```
+
+**PDF-Export:**
+
+```python
+def export_ustva_pdf(ustva_data):
+    """
+    Erstellt PDF-Übersicht der UStVA
+
+    Zum Ausdrucken/Dokumentieren
+    """
+    pdf = create_pdf('UStVA_' + ustva_data['zeitraum'] + '.pdf')
+
+    pdf.add_header("Umsatzsteuer-Voranmeldung")
+    pdf.add_text(f"Zeitraum: {ustva_data['zeitraum']}")
+
+    pdf.add_table([
+        ['Kz. 81', 'Umsätze 19%', format_currency(ustva_data['kz_81'])],
+        ['Kz. 83', 'USt 19%', format_currency(ustva_data['kz_83'])],
+        ['Kz. 86', 'Umsätze 7%', format_currency(ustva_data['kz_86'])],
+        ['Kz. 88', 'USt 7%', format_currency(ustva_data['kz_88'])],
+        ['Kz. 66', 'Vorsteuer', format_currency(ustva_data['kz_66'])],
+        ['', 'Zahllast', format_currency(ustva_data['zahllast'])],
+    ])
+
+    return pdf
+```
+
+---
+
+### **6.4 Kleinunternehmer (§19 UStG)**
+
+**Besonderheit:** Keine UStVA erforderlich!
+
+**Verhalten:**
+- RechnungsPilot erkennt: User ist Kleinunternehmer
+- UStVA-Menü wird ausgeblendet/deaktiviert
+- Hinweis: "Als Kleinunternehmer (§19 UStG) müssen Sie keine UStVA abgeben"
+
+**Optional:**
+- Umsatzgrenze-Tracker:
+  - Warnung bei 22.000 € Jahresumsatz
+  - "Achtung: Nächstes Jahr keine Kleinunternehmerregelung mehr!"
+
+---
+
+### **6.5 Soll- vs. Ist-Versteuerung**
+
+**Unterschied:**
+
+| | Soll-Versteuerung | Ist-Versteuerung |
+|---|---|---|
+| **Wann USt fällig?** | Bei Rechnungsstellung | Bei Zahlungseingang |
+| **Für wen?** | Alle (Standardfall) | Freiberufler, kleine Unternehmen |
+| **RechnungsPilot** | Alle Ausgangsrechnungen | Nur bezahlte Rechnungen |
+
+**Implementierung:**
+
+```python
+def get_ausgangsrechnungen_fuer_ustva(zeitraum, versteuerungsart):
+    if versteuerungsart == 'ist':
+        # Ist-Versteuerung: Nur bezahlte Rechnungen
+        return get_ausgangsrechnungen(
+            zeitraum=zeitraum,
+            bezahlt=True
+        )
+    else:
+        # Soll-Versteuerung: Alle Rechnungen
+        return get_ausgangsrechnungen(
+            zeitraum=zeitraum
+        )
+```
+
+**User-Einstellung:**
+```
+Einstellungen > Steuern
+┌────────────────────────────┐
+│ Versteuerungsart:          │
+│ ○ Soll-Versteuerung        │
+│ ● Ist-Versteuerung         │
+└────────────────────────────┘
+```
+
+---
+
+**Status:** ✅ Kategorie 6.1-6.5 definiert - Hybrid-Ansatz (MVP: Zahlen vorbereiten, v2.0: ELSTER-Integration), Berechnung, Kleinunternehmer, Ist/Soll-Versteuerung.
+
+---
+
 ## **🔍 Export-Anforderungen für Steuerberater-Software**
 
 ### **AGENDA (Lexware) - Export-Kompatibilität**
@@ -2675,7 +2975,7 @@ def export_to_agenda(zeitraum):
 
 ### **Noch zu klären (siehe fragen.md):**
 
-- Kategorie 6: UStVA (Details)
+- ✅ ~~Kategorie 6: UStVA~~ - **Geklärt** (Hybrid-Ansatz, MVP nur Zahlen)
 - Kategorie 7: EÜR
 - Kategorie 8: Stammdaten-Erfassung
 - Kategorie 9: Import-Schnittstellen (inkl. AGENDA-kompatibel)
