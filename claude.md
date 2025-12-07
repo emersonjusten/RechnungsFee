@@ -3107,6 +3107,476 @@ Verkauf in EU:
 
 ---
 
+#### **Validierung & Abhängigkeiten** ⚠️ **KRITISCH**
+
+**Problem:** EU-Handel hat viele Voraussetzungen - ohne Validierung → Fehler bei Betriebsprüfung!
+
+---
+
+##### **Abhängigkeiten-Checkliste:**
+
+**1. Voraussetzung: Eigene USt-IdNr. vorhanden**
+
+```
+Ohne eigene USt-IdNr.:
+❌ Kein EU-Handel möglich
+❌ Kein Reverse Charge
+❌ Keine innergemeinschaftliche Lieferung
+
+Konsequenz:
+→ EU-Funktionen müssen gesperrt sein
+→ Setup-Wizard muss abfragen
+```
+
+**Validierung:**
+```python
+def can_use_eu_trade():
+    """
+    Prüft, ob User EU-Handel nutzen kann
+    """
+    user = get_user_settings()
+
+    # 1. Hat User eigene USt-IdNr.?
+    if not user.ust_idnr:
+        return False, "Keine USt-IdNr. hinterlegt"
+
+    # 2. Format validieren (DE + 9 Ziffern)
+    if not re.match(r'^DE[0-9]{9}$', user.ust_idnr):
+        return False, "USt-IdNr. hat ungültiges Format"
+
+    # 3. Kleinunternehmer?
+    if user.ist_kleinunternehmer:
+        return False, "Kleinunternehmer können keinen EU-Handel nutzen"
+
+    # 4. USt-IdNr. bei BZSt bestätigt?
+    if not user.ust_idnr_bestaetigt:
+        return False, "USt-IdNr. noch nicht vom BZSt bestätigt"
+
+    return True, "OK"
+```
+
+**UI-Verhalten:**
+```
+Wenn can_use_eu_trade() == False:
+┌─────────────────────────────────────────┐
+│ Ausgangsrechnung erstellen             │
+├─────────────────────────────────────────┤
+│ Kunde: [Max Mustermann ▼]             │
+│ Land:  [Deutschland ▼]                 │
+│        [Belgien] (ausgegraut)          │
+│                                         │
+│ ⚠️ EU-Länder nicht verfügbar            │
+│    Grund: Keine USt-IdNr. hinterlegt   │
+│    → Einstellungen > Stammdaten         │
+└─────────────────────────────────────────┘
+```
+
+---
+
+**2. Voraussetzung: Kunden-USt-IdNr. validiert**
+
+```
+Vor jeder ig. Lieferung MUSS geprüft werden:
+✅ Kunde hat USt-IdNr. angegeben
+✅ Format ist korrekt (z.B. BE0123456789)
+✅ BZSt-Bestätigung liegt vor (validiert!)
+✅ Nicht älter als 1 Jahr (Empfehlung)
+```
+
+**Validierung beim Rechnung-Erstellen:**
+```python
+def validate_eu_invoice(rechnung):
+    """
+    Prüft Rechnung vor dem Speichern
+    """
+    errors = []
+
+    if rechnung.land != 'DE':
+        # 1. USt-IdNr. vorhanden?
+        if not rechnung.kunde_ust_idnr:
+            errors.append(
+                "Für EU-Lieferungen ist die USt-IdNr. des Kunden PFLICHT. "
+                "Ohne gültige USt-IdNr. muss deutsche USt berechnet werden."
+            )
+
+        # 2. USt-IdNr. validiert?
+        if rechnung.kunde_ust_idnr and not rechnung.ust_idnr_validiert:
+            errors.append(
+                "USt-IdNr. muss über BZSt validiert werden. "
+                "Klicken Sie auf 'Validieren'."
+            )
+
+        # 3. Validation nicht älter als 1 Jahr?
+        if rechnung.ust_idnr_validierung_datum:
+            age = heute() - rechnung.ust_idnr_validierung_datum
+            if age.days > 365:
+                errors.append(
+                    "USt-IdNr.-Validierung ist älter als 1 Jahr. "
+                    "Bitte neu validieren."
+                )
+
+        # 4. Wenn 0% USt → Validierung PFLICHT
+        if rechnung.umsatzsteuer_satz == 0 and not rechnung.ust_idnr_validiert:
+            errors.append(
+                "0% USt (steuerfreie ig. Lieferung) nur mit validierter USt-IdNr.!"
+            )
+
+    return errors
+```
+
+**UI-Blockierung:**
+```
+[ Rechnung speichern ]
+        ↓
+      FEHLER!
+
+┌─────────────────────────────────────────┐
+│ ❌ Rechnung kann nicht gespeichert      │
+│    werden                               │
+├─────────────────────────────────────────┤
+│ • USt-IdNr. des Kunden fehlt            │
+│ • USt-IdNr. nicht validiert             │
+│                                         │
+│ Bitte ergänzen Sie die USt-IdNr. und   │
+│ validieren Sie diese über BZSt.        │
+│                                         │
+│ [ Stammdaten öffnen ]  [ Abbrechen ]   │
+└─────────────────────────────────────────┘
+```
+
+---
+
+**3. Voraussetzung: Gelangensbestätigung (empfohlen)**
+
+```
+Ohne Gelangensbestätigung:
+⚠️ Finanzamt kann 0% USt ablehnen
+⚠️ Nachzahlung + Zinsen möglich
+```
+
+**Validierung (Warnung, nicht Fehler):**
+```python
+def warn_missing_gelangensbestaetigung(rechnung):
+    """
+    Warnt bei fehlender Gelangensbestätigung
+    """
+    if rechnung.ist_eu_lieferung and not rechnung.gelangensbestaetigung_vorhanden:
+        return Warning(
+            "Gelangensbestätigung fehlt! "
+            "Laden Sie einen Nachweis hoch (CMR, Tracking, Lieferschein). "
+            "Ohne Nachweis kann das Finanzamt die steuerfreie Lieferung ablehnen."
+        )
+```
+
+**UI-Warnung:**
+```
+[ Rechnung speichern ]
+        ↓
+
+┌─────────────────────────────────────────┐
+│ ⚠️ Gelangensbestätigung fehlt            │
+├─────────────────────────────────────────┤
+│ Diese Rechnung ist eine innergemein-    │
+│ schaftliche Lieferung (0% USt).         │
+│                                         │
+│ WICHTIG: Laden Sie einen Nachweis hoch, │
+│ dass die Ware nach Belgien geliefert    │
+│ wurde (CMR, DHL-Tracking, etc.).        │
+│                                         │
+│ Ohne Nachweis:                          │
+│ → Finanzamt kann 0% USt ablehnen        │
+│ → Nachzahlung 19% USt + Zinsen          │
+│                                         │
+│ [ Jetzt hochladen ]  [ Später ]         │
+└─────────────────────────────────────────┘
+```
+
+---
+
+##### **Integration im Setup-Wizard** 🧙
+
+**Schritt 1: Grunddaten (erweitert)**
+
+```
+┌─────────────────────────────────────────┐
+│ RechnungsPilot - Ersteinrichtung       │
+│ Schritt 1/5: Grunddaten                │
+├─────────────────────────────────────────┤
+│                                         │
+│ Firmenname:  [Musterfirma GmbH]        │
+│ Straße:      [Musterstr. 1]            │
+│ PLZ/Ort:     [12345] [Musterstadt]     │
+│                                         │
+│ ┌─────────────────────────────────────┐ │
+│ │ Umsatzsteuer                        │ │
+│ ├─────────────────────────────────────┤ │
+│ │ ○ Kleinunternehmer (§19 UStG)       │ │
+│ │   → Keine USt, kein EU-Handel       │ │
+│ │                                     │ │
+│ │ ● Regelbesteuert                    │ │
+│ │   USt-IdNr: [DE123456789]          │ │
+│ │   [ BZSt validieren ] ✅ Gültig     │ │
+│ │                                     │ │
+│ │   ☑ Ich plane EU-Handel             │ │
+│ │     (innergemeinschaftliche         │ │
+│ │      Lieferungen/Erwerbe)           │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ [ Zurück ]              [ Weiter ]     │
+└─────────────────────────────────────────┘
+```
+
+**Logik:**
+```python
+def setup_wizard_step1_validate(data):
+    if data.ist_kleinunternehmer:
+        # Kleinunternehmer: EU-Handel deaktivieren
+        data.eu_handel_aktiv = False
+        return True
+
+    if data.plant_eu_handel:
+        # Regelbesteuert + EU-Handel:
+        if not data.ust_idnr:
+            return Error("Für EU-Handel ist USt-IdNr. Pflicht")
+
+        if not validate_ust_idnr_format(data.ust_idnr):
+            return Error("USt-IdNr. hat ungültiges Format (DE + 9 Ziffern)")
+
+        # BZSt-Validierung durchführen
+        result = bzst_validate(data.ust_idnr)
+        if not result.gueltig:
+            return Error(f"USt-IdNr. ungültig: {result.fehler}")
+
+    return True
+```
+
+---
+
+**Schritt 2: EU-Handel-Konfiguration (nur wenn aktiviert)**
+
+```
+┌─────────────────────────────────────────┐
+│ RechnungsPilot - Ersteinrichtung       │
+│ Schritt 2/5: EU-Handel                 │
+├─────────────────────────────────────────┤
+│                                         │
+│ Sie haben EU-Handel aktiviert.         │
+│ Bitte lesen Sie folgende Hinweise:     │
+│                                         │
+│ ✅ Voraussetzungen:                     │
+│ • Gültige USt-IdNr. (DE123456789) ✅    │
+│ • Regelbesteuerung (kein §19) ✅        │
+│                                         │
+│ ⚠️ Pflichten bei EU-Geschäften:         │
+│ • Kunden-USt-IdNr. MUSS validiert sein │
+│ • Gelangensbestätigung hochladen       │
+│ • Zusammenfassende Meldung (ZM)        │
+│   monatlich/quartalsweise an BZSt      │
+│                                         │
+│ 📋 In welchen Ländern handeln Sie?     │
+│ (optional - nur zur Vorbereitung)      │
+│                                         │
+│ ☑ Belgien                               │
+│ ☑ Niederlande                           │
+│ ☐ Frankreich                            │
+│ ☐ Österreich                            │
+│ ☐ Weitere... [27 EU-Länder]            │
+│                                         │
+│ [ Zurück ]              [ Weiter ]     │
+└─────────────────────────────────────────┘
+```
+
+---
+
+##### **Integration in Stammdaten (Kategorie 8)** 📋
+
+**Kunden-Stammdaten (erweitert):**
+
+```
+Kunde bearbeiten: Belgischer Kunde GmbH
+┌─────────────────────────────────────────┐
+│ Grunddaten                              │
+├─────────────────────────────────────────┤
+│ Firmenname: [Belgischer Kunde GmbH]    │
+│ Straße:     [Rue de Example 123]       │
+│ PLZ/Ort:    [1000] [Brüssel]           │
+│                                         │
+│ Land:       [Belgien ▼]  🇧🇪             │
+│                                         │
+│ ┌─────────────────────────────────────┐ │
+│ │ Umsatzsteuer-ID (EU)                │ │
+│ ├─────────────────────────────────────┤ │
+│ │ USt-IdNr: [BE0123456789]            │ │
+│ │           [ Validieren ]            │ │
+│ │                                     │ │
+│ │ Status: ✅ Gültig                    │ │
+│ │ Validiert: 05.12.2025 (vor 2 Tagen)│ │
+│ │ BZSt-Ergebnis: A (qualifiziert)    │ │
+│ │                                     │ │
+│ │ ⚠️ Wichtig:                          │ │
+│ │ Ohne validierte USt-IdNr. wird      │ │
+│ │ deutsche USt (19%) berechnet!       │ │
+│ └─────────────────────────────────────┘ │
+│                                         │
+│ [ Speichern ]  [ Abbrechen ]           │
+└─────────────────────────────────────────┘
+```
+
+**Validierung beim Speichern:**
+```python
+def validate_kunde(kunde):
+    errors = []
+
+    if kunde.land != 'DE':
+        # EU-Land: Prüfen ob USt-IdNr. nötig
+        if not kunde.ust_idnr:
+            errors.append({
+                'feld': 'ust_idnr',
+                'typ': 'warning',
+                'nachricht':
+                    'Für EU-Kunden empfehlen wir die Angabe der USt-IdNr. '
+                    'Ohne USt-IdNr. wird deutsche USt (19%) berechnet.'
+            })
+        elif not kunde.ust_idnr_validiert:
+            errors.append({
+                'feld': 'ust_idnr',
+                'typ': 'error',
+                'nachricht':
+                    'USt-IdNr. muss validiert werden (BZSt-Abfrage). '
+                    'Klicken Sie auf "Validieren".'
+            })
+
+    return errors
+```
+
+---
+
+##### **Validierungs-Matrix**
+
+**Übersicht: Was muss wann geprüft werden?**
+
+| Zeitpunkt | Prüfung | Fehler-Typ | Aktion |
+|-----------|---------|------------|--------|
+| **Setup-Wizard** | Eigene USt-IdNr. vorhanden | ❌ Fehler | Weiter blockiert |
+| **Setup-Wizard** | USt-IdNr. Format korrekt | ❌ Fehler | Korrektur nötig |
+| **Setup-Wizard** | BZSt-Validierung erfolgreich | ❌ Fehler | Eingabe prüfen |
+| **Kunde speichern** | Kunden-USt-IdNr. vorhanden | ⚠️ Warnung | Weiter möglich |
+| **Kunde speichern** | Kunden-USt-IdNr. validiert | ❌ Fehler | Validierung nötig |
+| **Rechnung erstellen** | Kunde hat validierte USt-IdNr. | ❌ Fehler | Stammdaten öffnen |
+| **Rechnung erstellen** | Gelangensbestätigung vorhanden | ⚠️ Warnung | Später hochladen |
+| **Rechnung speichern** | 0% USt nur mit USt-IdNr. | ❌ Fehler | Speichern blockiert |
+| **UStVA erstellen** | Kz. 41: Alle Rechnungen validiert | ⚠️ Warnung | Prüfung empfohlen |
+| **ZM erstellen** | Alle Lieferungen haben USt-IdNr. | ❌ Fehler | Export blockiert |
+
+---
+
+##### **Fehlerbehandlung & User-Guidance**
+
+**Szenario 1: User will EU-Rechnung erstellen, aber keine eigene USt-IdNr.**
+
+```
+User: Rechnung erstellen > Land: Belgien
+       ↓
+System: STOP!
+
+┌─────────────────────────────────────────┐
+│ ⚠️ EU-Handel nicht möglich               │
+├─────────────────────────────────────────┤
+│ Für Geschäfte mit EU-Ländern benötigen │
+│ Sie eine gültige deutsche USt-IdNr.    │
+│                                         │
+│ Sie sind aktuell als Kleinunternehmer  │
+│ (§19 UStG) registriert.                │
+│                                         │
+│ Optionen:                               │
+│ • Beim Finanzamt USt-IdNr. beantragen   │
+│ • Auf Regelbesteuerung umstellen        │
+│                                         │
+│ [ Stammdaten ändern ]  [ Abbrechen ]   │
+└─────────────────────────────────────────┘
+```
+
+**Szenario 2: Kunde ohne USt-IdNr., User will 0% USt**
+
+```
+User: USt-Satz: 0% (ig. Lieferung)
+       ↓
+System: STOP!
+
+┌─────────────────────────────────────────┐
+│ ❌ 0% USt nicht möglich                  │
+├─────────────────────────────────────────┤
+│ Für steuerfreie innergemeinschaftliche │
+│ Lieferungen (0% USt) ist eine validierte│
+│ USt-IdNr. des Kunden PFLICHT.          │
+│                                         │
+│ Kunde: Belgischer Kunde GmbH           │
+│ USt-IdNr: [fehlt]                      │
+│                                         │
+│ Optionen:                               │
+│ 1. USt-IdNr. erfragen und validieren    │
+│ 2. Deutsche USt (19%) berechnen         │
+│                                         │
+│ [ Stammdaten öffnen ]                  │
+│ [ 19% USt verwenden ]  [ Abbrechen ]   │
+└─────────────────────────────────────────┘
+```
+
+---
+
+##### **Dokumentation für User** 📖
+
+**Hilfe-Seite: "EU-Handel - Checkliste"**
+
+```markdown
+# EU-Handel: Was Sie benötigen
+
+## ✅ Voraussetzungen
+
+1. **Eigene USt-IdNr.**
+   - Beim Finanzamt beantragen
+   - Format: DE + 9 Ziffern (z.B. DE123456789)
+   - In RechnungsPilot: Einstellungen > Stammdaten
+
+2. **Regelbesteuerung**
+   - Kleinunternehmer (§19 UStG) können keinen EU-Handel nutzen
+   - Umstellung beim Finanzamt beantragen
+
+3. **Kunden-USt-IdNr.**
+   - Für jeden EU-Kunden erforderlich
+   - MUSS über BZSt validiert werden
+   - In RechnungsPilot: Kunde bearbeiten > "Validieren"
+
+4. **Gelangensbestätigung**
+   - Nachweis, dass Ware ins EU-Ausland geliefert wurde
+   - CMR-Frachtbrief, DHL-Tracking, Lieferschein
+   - In RechnungsPilot: Rechnung > "Nachweis hochladen"
+
+## ⚠️ Häufige Fehler
+
+❌ "USt-IdNr. nicht validiert"
+→ Lösung: Kunde öffnen > USt-IdNr. eingeben > "Validieren" klicken
+
+❌ "0% USt nicht möglich"
+→ Lösung: Kunde muss gültige USt-IdNr. haben
+
+❌ "Gelangensbestätigung fehlt"
+→ Lösung: CMR/Tracking hochladen (empfohlen, nicht Pflicht)
+
+## 📋 Monatliche Aufgaben
+
+- Zusammenfassende Meldung (ZM) an BZSt senden
+- RechnungsPilot: Berichte > ZM erstellen > XML exportieren
+```
+
+---
+
+**Status:** ✅ Validierungs-Konzept definiert - Setup-Wizard, Stammdaten, Fehlerbehandlung, User-Guidance
+
+→ **TODO:** Integration in Kategorie 8 (Stammdaten-Erfassung) wenn diese dokumentiert wird
+
+---
+
 ### **6.3 Implementierung (MVP)**
 
 **Datenquellen:**
