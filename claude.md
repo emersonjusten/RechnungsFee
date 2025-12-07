@@ -5608,7 +5608,422 @@ CREATE TABLE bankkonten (
 
 ---
 
-### **8.6 Kundenstamm (OFFEN - Community-Entscheidung)**
+### **8.6 Kontenrahmen (SKR03 / SKR04)**
+
+**Zweck:**
+- DATEV-Export korrekt zuordnen
+- Buchungskonten für Einnahmen/Ausgaben
+- Unterschied zwischen Gewerbetreibenden und Freiberuflern
+
+**Was ist der Kontenrahmen?**
+- Standardisierte Nummernstruktur für Buchhaltungskonten
+- In Deutschland: SKR03 oder SKR04 (DATEV-Standard)
+
+**Unterschied:**
+
+| Aspekt | SKR03 | SKR04 |
+|--------|-------|-------|
+| **Zielgruppe** | Gewerbetreibende, Handwerk, Handel | Freiberufler, Dienstleister |
+| **Struktur** | Prozessgliederung (nach Ablauf) | Abschlussgliederung (nach Bilanz) |
+| **Beispiel** | Konto 8400: Erlöse 19% USt | Konto 4400: Erlöse 19% USt |
+| **Verbreitung** | Häufiger | Seltener |
+
+**Auswahl im Setup-Wizard:**
+
+```
+┌─────────────────────────────────────────┐
+│ Kontenrahmen auswählen                  │
+├─────────────────────────────────────────┤
+│                                         │
+│ Welchen Kontenrahmen nutzen Sie?       │
+│                                         │
+│ ● SKR03 (Prozessgliederung)            │
+│   Empfohlen für:                        │
+│   - Gewerbetreibende                    │
+│   - Handel, Handwerk                    │
+│   - Produktion                          │
+│                                         │
+│ ○ SKR04 (Abschlussgliederung)          │
+│   Empfohlen für:                        │
+│   - Freiberufler                        │
+│   - Dienstleister                       │
+│   - Beratung, IT, Kreative              │
+│                                         │
+│ 💡 Diese Einstellung kann später        │
+│    geändert werden.                     │
+│                                         │
+│          [Zurück]  [Weiter →]           │
+└─────────────────────────────────────────┘
+```
+
+**Datenbank:**
+```sql
+ALTER TABLE user_settings ADD COLUMN kontenrahmen TEXT DEFAULT 'SKR03';
+-- 'SKR03' oder 'SKR04'
+```
+
+**Implementierung:**
+```python
+def get_datev_konto(kategorie_name, kontenrahmen='SKR03'):
+    """
+    Gibt DATEV-Konto für Kategorie zurück
+    """
+    mapping = {
+        'Warenverkauf': {
+            'SKR03': 8400,
+            'SKR04': 4400
+        },
+        'Bürobedarf': {
+            'SKR03': 4910,
+            'SKR04': 6815
+        },
+        # ... weitere Kategorien
+    }
+
+    return mapping[kategorie_name][kontenrahmen]
+```
+
+**Wechsel später möglich:**
+```python
+def switch_kontenrahmen(alt, neu):
+    """
+    Wechselt Kontenrahmen für alle Kategorien
+    """
+    kategorien = get_all_kategorien()
+
+    for kat in kategorien:
+        kat.datev_konto = get_datev_konto(kat.name, neu)
+        kat.save()
+
+    user_settings.kontenrahmen = neu
+    user_settings.save()
+
+    return f"Kontenrahmen gewechselt: {alt} → {neu}"
+```
+
+---
+
+### **8.7 Geschäftsjahr**
+
+**Zweck:**
+- Zeiträume für EÜR, UStVA, Auswertungen
+- Standard: Kalenderjahr (01.01. - 31.12.)
+- Abweichendes Wirtschaftsjahr möglich (z.B. Landwirtschaft)
+
+**Standard: Kalenderjahr**
+```python
+class UserSettings:
+    geschaeftsjahr_start: str = '01-01'  # MM-DD
+    geschaeftsjahr_ende: str = '12-31'   # MM-DD
+```
+
+**Abweichendes Wirtschaftsjahr (Beispiel):**
+```
+Landwirtschaft: 01.07. - 30.06.
+→ geschaeftsjahr_start = '07-01'
+→ geschaeftsjahr_ende = '06-30'
+```
+
+**UI - Setup-Wizard:**
+```
+┌─────────────────────────────────────────┐
+│ Geschäftsjahr festlegen                 │
+├─────────────────────────────────────────┤
+│                                         │
+│ ● Kalenderjahr (01.01. - 31.12.)       │
+│   Standard für die meisten Unternehmen │
+│                                         │
+│ ○ Abweichendes Wirtschaftsjahr         │
+│   Beginn: [01] . [07] (TT.MM)          │
+│   Ende:   [30] . [06] (TT.MM)          │
+│                                         │
+│   Beispiel: Landwirtschaft (01.07.-30.06.)│
+│                                         │
+│ 💡 Wichtig für EÜR und Jahresabschluss │
+│                                         │
+│          [Zurück]  [Weiter →]           │
+└─────────────────────────────────────────┘
+```
+
+**Verwendung:**
+```python
+def get_geschaeftsjahr(jahr):
+    """
+    Gibt Start- und End-Datum des Geschäftsjahres zurück
+    """
+    user = get_user_settings()
+
+    if user.geschaeftsjahr_start == '01-01':
+        # Kalenderjahr
+        return (
+            date(jahr, 1, 1),
+            date(jahr, 12, 31)
+        )
+    else:
+        # Abweichendes Wirtschaftsjahr
+        start_month, start_day = user.geschaeftsjahr_start.split('-')
+        ende_month, ende_day = user.geschaeftsjahr_ende.split('-')
+
+        start = date(jahr, int(start_month), int(start_day))
+
+        # Ende kann im Folgejahr sein
+        if int(ende_month) < int(start_month):
+            ende = date(jahr + 1, int(ende_month), int(ende_day))
+        else:
+            ende = date(jahr, int(ende_month), int(ende_day))
+
+        return (start, ende)
+
+
+def calculate_euer(jahr):
+    """
+    Berechnet EÜR für Geschäftsjahr
+    """
+    start, ende = get_geschaeftsjahr(jahr)
+
+    rechnungen = get_rechnungen(
+        zahlungsdatum__gte=start,
+        zahlungsdatum__lte=ende
+    )
+    # ... Berechnung
+```
+
+---
+
+### **8.8 Lieferantenstammdaten**
+
+**Zweck:**
+- Wiederholte Lieferanten (z.B. Vermieter, Telefon, Strom)
+- Autocomplete bei Eingangsrechnungen
+- Ähnlich wie Kundenstamm, aber minimalistischer
+
+**Datenbank:**
+```sql
+CREATE TABLE lieferanten (
+    id INTEGER PRIMARY KEY,
+
+    -- Stammdaten
+    lieferantennummer TEXT UNIQUE,  -- "L-001" (automatisch)
+    name TEXT NOT NULL,  -- "Deutsche Telekom AG"
+
+    -- Adresse
+    strasse TEXT,
+    hausnummer TEXT,
+    plz TEXT,
+    ort TEXT,
+    land TEXT DEFAULT 'DE',
+
+    -- Kontakt
+    email TEXT,
+    telefon TEXT,
+    website TEXT,
+
+    -- Steuerlich
+    ust_idnr TEXT,  -- Bei EU-Lieferanten wichtig (Reverse Charge)
+
+    -- Standard-Kategorie (optional)
+    standard_kategorie_id INTEGER,  -- z.B. "Telefon/Internet" für Telekom
+
+    -- Metadaten
+    notizen TEXT,
+    erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Statistiken
+    anzahl_rechnungen INTEGER DEFAULT 0,
+    ausgaben_gesamt DECIMAL(10,2) DEFAULT 0.00,
+
+    FOREIGN KEY (standard_kategorie_id) REFERENCES kategorien(id)
+);
+```
+
+**UI - Lieferanten verwalten:**
+```
+┌────────────────────────────────────────────┐
+│ Stammdaten → Lieferanten                   │
+├────────────────────────────────────────────┤
+│                                            │
+│ [ + Neuer Lieferant ]        [🔍 Suchen]  │
+│                                            │
+│ Nr.  │ Name                │ Kategorie     │
+│──────┼─────────────────────┼──────────────│
+│ L-001│ Vermieter Müller    │ Raumkosten   │
+│ L-002│ Deutsche Telekom AG │ Telefon      │
+│ L-003│ Amazon Business     │ Bürobedarf   │
+│ L-004│ Shell Tankstelle    │ Fahrtkosten  │
+│ L-005│ Lieferant BE GmbH   │ Wareneinkauf │
+│      │ (BE0123456789)      │ [EU]         │
+│                                            │
+│ Gesamt: 5 Lieferanten                      │
+└────────────────────────────────────────────┘
+```
+
+**Verknüpfung mit Eingangsrechnungen:**
+```python
+class Eingangsrechnung:
+    id: int
+    lieferant_id: int  # OPTIONAL - Verknüpfung zu Lieferant
+    lieferant_name: str  # Immer ausgefüllt (auch ohne Stammdaten)
+    # ... andere Felder
+```
+
+**Autocomplete beim Erfassen:**
+```
+┌────────────────────────────────────────┐
+│ Eingangsrechnung erfassen              │
+├────────────────────────────────────────┤
+│                                        │
+│ Lieferant: [Deut____________]         │
+│            ┌──────────────────────┐   │
+│            │ Deutsche Telekom AG  │   │
+│            │ (L-002)              │   │
+│            │ Kategorie: Telefon   │   │
+│            └──────────────────────┘   │
+│                                        │
+│ [✓] = Enter drücken übernimmt          │
+└────────────────────────────────────────┘
+```
+
+**Hybrid-Ansatz (wie Kundenstamm):**
+- Optional: Lieferant aus Stamm wählen
+- Oder: Manuell Name eingeben
+- Bei wiederholtem Lieferanten: "Als Lieferant speichern?" anbieten
+
+---
+
+### **8.9 Produktstammdaten (für Rechnungsschreib-Modul)**
+
+**Zweck:**
+- Für späteres Modul "Ausgangsrechnungen erstellen"
+- Wiederverwendbare Produkte/Dienstleistungen
+- Schnelles Erstellen von Rechnungen
+
+**Status:** 📋 **Für v2.0 geplant** (NICHT in MVP v1.0)
+
+**Begründung:**
+- MVP v1.0: Nur Rechnungen VERWALTEN (nicht erstellen)
+- Rechnungsschreiben über LibreOffice/HTML-Vorlagen
+- Produktstamm wird erst relevant, wenn internes Rechnungsschreib-Tool kommt
+
+**Vorbereitung - Datenbank-Schema:**
+```sql
+CREATE TABLE produkte (
+    id INTEGER PRIMARY KEY,
+
+    -- Stammdaten
+    artikelnummer TEXT UNIQUE,  -- "ART-001" (manuell oder automatisch)
+    bezeichnung TEXT NOT NULL,  -- "Beratungsstunde"
+    beschreibung TEXT,  -- Längerer Text für Rechnung
+
+    -- Typ
+    typ TEXT,  -- 'dienstleistung', 'ware', 'pauschale'
+
+    -- Preis
+    einzelpreis_netto DECIMAL(10,2),
+    umsatzsteuer_satz DECIMAL(5,2) DEFAULT 19.0,
+    einzelpreis_brutto DECIMAL(10,2),
+
+    -- Einheit
+    einheit TEXT DEFAULT 'Stück',  -- 'Stunde', 'Stück', 'Pauschal', 'kg', etc.
+
+    -- Kategorie
+    kategorie_id INTEGER,  -- Zuordnung zu Einnahmen-Kategorie
+
+    -- Aktiv
+    ist_aktiv BOOLEAN DEFAULT 1,
+
+    -- Metadaten
+    erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (kategorie_id) REFERENCES kategorien(id)
+);
+```
+
+**Beispiel-Produkte:**
+```python
+PRODUKTE_BEISPIELE = [
+    {
+        'artikelnummer': 'DL-001',
+        'bezeichnung': 'Beratungsstunde',
+        'typ': 'dienstleistung',
+        'einzelpreis_netto': 80.00,
+        'umsatzsteuer_satz': 19.0,
+        'einzelpreis_brutto': 95.20,
+        'einheit': 'Stunde'
+    },
+    {
+        'artikelnummer': 'ART-001',
+        'bezeichnung': 'Laptop Dell XPS 13',
+        'typ': 'ware',
+        'einzelpreis_netto': 1000.00,
+        'umsatzsteuer_satz': 19.0,
+        'einzelpreis_brutto': 1190.00,
+        'einheit': 'Stück'
+    },
+    {
+        'artikelnummer': 'PAUS-001',
+        'bezeichnung': 'Website-Erstellung Pauschal',
+        'typ': 'pauschale',
+        'einzelpreis_netto': 2500.00,
+        'umsatzsteuer_satz': 19.0,
+        'einzelpreis_brutto': 2975.00,
+        'einheit': 'Pauschal'
+    }
+]
+```
+
+**UI-Konzept (für v2.0):**
+```
+┌────────────────────────────────────────────┐
+│ Stammdaten → Produkte / Dienstleistungen   │
+├────────────────────────────────────────────┤
+│                                            │
+│ [ + Neues Produkt ]          [🔍 Suchen]  │
+│                                            │
+│ Art.-Nr. │ Bezeichnung       │ Preis      │
+│──────────┼───────────────────┼───────────│
+│ DL-001   │ Beratungsstunde   │ 95,20 €   │
+│ ART-001  │ Laptop Dell XPS   │ 1.190,00 €│
+│ PAUS-001 │ Website-Erstellung│ 2.975,00 €│
+│                                            │
+│ Gesamt: 3 Produkte                         │
+└────────────────────────────────────────────┘
+```
+
+**Verwendung in v2.0 (Ausgangsrechnung erstellen):**
+```
+┌────────────────────────────────────────┐
+│ Ausgangsrechnung erstellen             │
+├────────────────────────────────────────┤
+│                                        │
+│ Kunde: [Belgischer Kunde ▼]           │
+│                                        │
+│ POSITIONEN:                            │
+│                                        │
+│ Pos │ Artikel        │ Anz │ Preis    │
+│─────┼────────────────┼─────┼─────────│
+│  1  │ [Beratung▼]    │ 10  │ 952,00 €│
+│     │ Beratungsstunde│     │          │
+│                                        │
+│ [ + Position hinzufügen ]              │
+│                                        │
+│ Gesamt netto:     800,00 €             │
+│ USt 19%:          152,00 €             │
+│ ─────────────────────────────          │
+│ Gesamt brutto:    952,00 €             │
+│                                        │
+│      [Abbrechen]  [ Speichern ]        │
+└────────────────────────────────────────┘
+```
+
+**Entscheidung für v1.0:**
+- ❌ NICHT in Setup-Wizard
+- ❌ NICHT in Stammdaten-Erfassung
+- ✅ Datenbank-Schema vorbereitet (Tabelle existiert, aber leer)
+- ✅ UI/Funktionalität für v2.0
+
+---
+
+### **8.10 Kundenstamm (OFFEN - Community-Entscheidung)**
 
 **Status:** 📋 **Ausstehende Entscheidung**
 
@@ -5735,7 +6150,7 @@ Rechnung erstellen:
 
 ---
 
-**Status:** ✅ Kategorie 8 definiert (teilweise) - User-/Firmen-Stammdaten, Kategorien, EU-Länder, Bankkonten dokumentiert. **Kundenstamm-Entscheidung ausstehend** (siehe `discussion-kundenstamm.md`).
+**Status:** ✅ Kategorie 8 definiert (weitgehend) - User-/Firmen-Stammdaten, Kategorien, EU-Länder, Bankkonten, Kontenrahmen (SKR03/SKR04), Geschäftsjahr, Lieferantenstamm, Produktstamm (v2.0) dokumentiert. **Kundenstamm-Entscheidung ausstehend** (siehe `discussion-kundenstamm.md`).
 
 ---
 
