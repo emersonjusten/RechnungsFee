@@ -4579,6 +4579,250 @@ EÜR_KATEGORIEN = [
 
 ---
 
+### **7.4.1 Betriebsausgaben-Kategorien (Frage 7.2)**
+
+**Konzept:**
+
+RechnungsPilot bietet ein **zweistufiges Kategorien-System**:
+
+1. **Vordefinierte Standard-Kategorien** (nach Anlage EÜR)
+2. **Frei erweiterbare User-Kategorien** (optional)
+
+---
+
+#### **Standard-Kategorien**
+
+**Anzahl:** 15 vordefinierte Ausgaben-Kategorien
+
+**Basis:** Anlage EÜR Zeilen 25-60 + DATEV-Kontenrahmen
+
+**Vollständige Liste:**
+
+```python
+AUSGABEN_KATEGORIEN = [
+    # ID | Name                    | EÜR-Zeile | DATEV SKR03 | DATEV SKR04
+
+    # Zeile 25: Wareneinkauf
+    {'id': 10, 'name': 'Wareneinkauf', 'euer_zeile': 25, 'skr03': 3400, 'skr04': 5400},
+
+    # Zeile 26: Löhne & Gehälter (auch für Einzelunternehmer mit Mitarbeitern!)
+    {'id': 11, 'name': 'Löhne & Gehälter', 'euer_zeile': 26, 'skr03': 4120, 'skr04': 6020},
+
+    # Zeile 28: Raumkosten
+    {'id': 12, 'name': 'Raumkosten (Miete)', 'euer_zeile': 28, 'skr03': 4210, 'skr04': 6300},
+    {'id': 13, 'name': 'Strom, Gas, Wasser', 'euer_zeile': 28, 'skr03': 4240, 'skr04': 6325},
+    {'id': 14, 'name': 'Telefon, Internet', 'euer_zeile': 28, 'skr03': 4910, 'skr04': 6805},
+
+    # Zeile 32: Fahrtkosten
+    {'id': 15, 'name': 'KFZ-Kosten (Benzin)', 'euer_zeile': 32, 'skr03': 4530, 'skr04': 6530},
+    {'id': 16, 'name': 'KFZ-Versicherung', 'euer_zeile': 32, 'skr03': 4570, 'skr04': 6560},
+    {'id': 17, 'name': 'Fahrtkosten (ÖPNV)', 'euer_zeile': 32, 'skr03': 4670, 'skr04': 6670},
+
+    # Zeile 34: Werbekosten
+    {'id': 18, 'name': 'Werbekosten', 'euer_zeile': 34, 'skr03': 4600, 'skr04': 6600},
+
+    # Zeile 36: Bürobedarf
+    {'id': 19, 'name': 'Bürobedarf', 'euer_zeile': 36, 'skr03': 4910, 'skr04': 6815},
+    {'id': 20, 'name': 'Software, Lizenzen', 'euer_zeile': 36, 'skr03': 4940, 'skr04': 6825},
+
+    # Zeile 40: Fortbildung
+    {'id': 21, 'name': 'Fortbildung', 'euer_zeile': 40, 'skr03': 4945, 'skr04': 6820},
+
+    # Zeile 41: Versicherungen
+    {'id': 22, 'name': 'Versicherungen (betr.)', 'euer_zeile': 41, 'skr03': 4360, 'skr04': 6540},
+
+    # Zeile 43: Sonstige unbeschränkt abziehbare Betriebsausgaben
+    {'id': 23, 'name': 'Steuerberatung', 'euer_zeile': 43, 'skr03': 4970, 'skr04': 6837},
+    {'id': 24, 'name': 'Sonstige Ausgaben', 'euer_zeile': 43, 'skr03': 4980, 'skr04': 6855},
+]
+```
+
+**Vorteile:**
+- ✅ Sofort einsatzbereit (kein Setup nötig)
+- ✅ Korrekte EÜR-Zuordnung garantiert
+- ✅ DATEV-Export funktioniert automatisch
+- ✅ Für 90% der Einzelunternehmer ausreichend
+
+---
+
+#### **Benutzerdefinierte Kategorien**
+
+**User kann eigene Kategorien hinzufügen:**
+
+```python
+class BenutzerKategorie:
+    """
+    Benutzerdefinierte Ausgaben-Kategorie
+    """
+    id: int  # 100+ (User-Kategorien starten bei ID 100)
+    name: str  # z.B. "Hosting & Domain-Kosten"
+    euer_zeile: int  # User wählt aus Dropdown: 25, 28, 32, 34, 36, 40, 41, 43
+    datev_konto_skr03: int  # Optional: User kann DATEV-Konto angeben
+    datev_konto_skr04: int  # Optional
+    parent_kategorie_id: int  # Optional: Verknüpfung zu Standard-Kategorie
+```
+
+**UI zum Anlegen:**
+
+```
+┌──────────────────────────────────────────┐
+│ Neue Kategorie erstellen                 │
+├──────────────────────────────────────────┤
+│                                          │
+│  Name:  [Hosting & Domain-Kosten___]    │
+│                                          │
+│  Zuordnung:                              │
+│  ● Basierend auf Standard-Kategorie:    │
+│    [Bürobedarf ▼]                        │
+│    → EÜR-Zeile 36                        │
+│    → DATEV SKR03: 4910                   │
+│                                          │
+│  ○ Manuelle Zuordnung:                   │
+│    EÜR-Zeile: [Zeile 36 ▼]              │
+│    DATEV SKR03: [4910_______]           │
+│    DATEV SKR04: [6815_______]           │
+│                                          │
+│    [Abbrechen]  [ Speichern ]            │
+└──────────────────────────────────────────┘
+```
+
+**Beispiel-Workflow:**
+
+1. User benötigt Kategorie "Hosting & Domain-Kosten"
+2. Wählt Basis-Kategorie "Bürobedarf" (Zeile 36, DATEV 4910)
+3. Neue Unterkategorie wird erstellt
+4. Bei Eingangsrechnung: User wählt "Hosting & Domain-Kosten"
+5. EÜR: Wird automatisch zu Zeile 36 addiert
+6. DATEV-Export: Wird mit Konto 4910 exportiert
+
+**Vorteile:**
+- ✅ Flexibel für spezielle Branchen (z.B. Fotografen: "Model-Honorare")
+- ✅ Detailliertere Auswertungen möglich
+- ✅ EÜR-Konformität bleibt erhalten (durch Basis-Kategorie)
+- ✅ DATEV-Export funktioniert (durch geerbtes Konto)
+
+---
+
+#### **DATEV-Kontenrahmen: SKR03 vs. SKR04**
+
+**Warum zwei Kontenrahmen?**
+
+| Kontenrahmen | Zielgruppe | Struktur |
+|--------------|-----------|----------|
+| **SKR03** | Gewerbetreibende, Handwerker, Handel | Prozessgliederung (Umsatzprozess) |
+| **SKR04** | Freiberufler, Dienstleister | Abschlussgliederung (GuV-Schema) |
+
+**User wählt bei Ersteinrichtung (Kategorie 8.6):**
+
+```
+Kontenrahmen wählen:
+
+○ SKR03 - Gewerbetreibende
+  Für: Handel, Handwerk, Produktion
+
+● SKR04 - Freiberufler
+  Für: IT-Berater, Ärzte, Anwälte, Kreative
+```
+
+**Automatisches Mapping:**
+
+```python
+def get_datev_konto(kategorie, kontenrahmen):
+    """
+    Gibt DATEV-Konto je nach Kontenrahmen zurück
+    """
+    if kontenrahmen == 'SKR03':
+        return kategorie.skr03
+    else:
+        return kategorie.skr04
+
+# Beispiel:
+kategorie = AUSGABEN_KATEGORIEN[0]  # Wareneinkauf
+get_datev_konto(kategorie, 'SKR03')  # → 3400
+get_datev_konto(kategorie, 'SKR04')  # → 5400
+```
+
+**Kontenrahmen wechseln:**
+
+⚠️ **Hinweis:** Wechsel nur möglich, wenn:
+- Noch keine Buchungen vorhanden ODER
+- User akzeptiert Neu-Mapping aller Buchungen
+
+```
+┌──────────────────────────────────────────┐
+│ ⚠️ Kontenrahmen wechseln?                │
+├──────────────────────────────────────────┤
+│                                          │
+│ Aktuell:  SKR03 (Gewerbetreibende)      │
+│ Neu:      SKR04 (Freiberufler)          │
+│                                          │
+│ Auswirkungen:                            │
+│ • 234 Buchungen werden neu zugeordnet   │
+│ • DATEV-Export ändert sich              │
+│ • Bisherige Exporte bleiben unverändert │
+│                                          │
+│ ⚠️ Dieser Vorgang kann nicht rückgängig │
+│    gemacht werden!                       │
+│                                          │
+│    [Abbrechen]  [ Kontenrahmen wechseln ]│
+└──────────────────────────────────────────┘
+```
+
+---
+
+#### **Namenskonventionen**
+
+**Regeln für Kategorienamen:**
+
+1. **Kurz & prägnant:** Max. 30 Zeichen
+2. **Selbsterklärend:** "Bürobedarf" statt "BB" oder "Diverses"
+3. **Eindeutig:** "Telefon, Internet" statt nur "Telefon"
+4. **Hierarchie optional:** "KFZ-Kosten (Benzin)" vs. einfach "Benzin"
+
+**Beispiele:**
+
+| ✅ Gut | ❌ Schlecht |
+|-------|-----------|
+| Wareneinkauf | Waren |
+| Löhne & Gehälter | Löhne |
+| Strom, Gas, Wasser | Energie |
+| Telefon, Internet | Telekommunikation (zu lang) |
+| KFZ-Kosten (Benzin) | Sprit |
+| Software, Lizenzen | SW |
+
+**User-Kategorien:** Können frei benannt werden, aber RechnungsPilot schlägt vor:
+- "Hosting & Domain-Kosten" (Unterkategorie von "Bürobedarf")
+- "Model-Honorare" (Unterkategorie von "Löhne & Gehälter")
+- "Werbe-Flyer" (Unterkategorie von "Werbekosten")
+
+---
+
+#### **Standard-Kategorien bearbeiten/löschen?**
+
+**Nein!** Standard-Kategorien sind **schreibgeschützt**.
+
+**Begründung:**
+- ✅ Garantiert korrekte EÜR-Zuordnung
+- ✅ Verhindert Fehler (z.B. "Wareneinkauf" versehentlich gelöscht)
+- ✅ DATEV-Export bleibt kompatibel
+
+**Workaround:**
+- User kann Standard-Kategorie **ausblenden** (wenn ungenutzt)
+- User kann **eigene Kategorie** mit anderem Namen erstellen
+
+---
+
+#### **Zusammenfassung Frage 7.2**
+
+| Aspekt | Antwort |
+|--------|---------|
+| **Vordefinierte Liste nach Anlage EÜR?** | ✅ Ja, 15 Standard-Kategorien |
+| **Frei konfigurierbar/erweiterbar?** | ✅ Ja, User-Kategorien mit EÜR-Zuordnung |
+| **Anlehnung an DATEV-Konten?** | ✅ Beide: Eigene Namen + DATEV-Mapping (SKR03/SKR04) |
+| **Wie viele Standard-Kategorien?** | **15 Ausgaben** + 5 Einnahmen |
+
+---
+
 ### **7.5 Abschreibungen (AfA)**
 
 **Was ist AfA?**
