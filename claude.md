@@ -3571,9 +3571,379 @@ System: STOP!
 
 ---
 
-**Status:** ✅ Validierungs-Konzept definiert - Setup-Wizard, Stammdaten, Fehlerbehandlung, User-Guidance
+##### **⚠️ KRITISCHE KORREKTUR: Export-Zeit-Validierung**
 
-→ **TODO:** Integration in Kategorie 8 (Stammdaten-Erfassung) wenn diese dokumentiert wird
+**Problem mit obigem Konzept:**
+
+```
+RechnungsPilot MVP hat KEINEN Kundenstamm!
+────────────────────────────────────────────
+
+User erstellt Rechnungen:
+• LibreOffice-Vorlagen
+• HTML-Vorlagen
+• PDF/XRechnung-Import
+
+→ KEINE Eingabemasken in RechnungsPilot
+→ KEINE Validierung bei Erfassung möglich
+→ User könnte fehlerhafte Rechnungen erstellen
+```
+
+**Konsequenz:**
+- Stammdaten-Validierung (oben) gilt erst für **Version 2.0** (mit Rechnungseditor)
+- Setup-Wizard-Validierung bleibt (eigene USt-IdNr. MUSS vorhanden sein)
+- **Alle anderen Validierungen müssen beim EXPORT erfolgen!**
+
+---
+
+##### **Export-Zeit-Validierung (MVP-Ansatz)** ✅
+
+**Wann wird validiert?**
+
+1. **Vor UStVA-Erstellung**
+2. **Vor ZM-Erstellung**
+3. **Vor DATEV-Export**
+
+**Was passiert bei Fehlern?**
+- Export wird NICHT blockiert
+- Aber: **Validierungs-Report** mit Warnungen
+- User muss Fehler bestätigen oder korrigieren
+
+---
+
+**1. UStVA-Validierung**
+
+```python
+def validate_ustva_before_export(zeitraum):
+    """
+    Prüft alle Rechnungen VOR UStVA-Export
+    """
+    warnings = []
+    errors = []
+
+    # Alle Rechnungen mit 0% USt (ig. Lieferung)
+    eu_lieferungen = get_ausgangsrechnungen(
+        zeitraum=zeitraum,
+        umsatzsteuer_satz=0,
+        land_not='DE'
+    )
+
+    for rechnung in eu_lieferungen:
+        # 1. Land ist EU-Mitglied?
+        if rechnung.land not in EU_LAENDER:
+            errors.append({
+                'rechnung': rechnung.nummer,
+                'fehler': f"Land '{rechnung.land}' ist kein EU-Mitglied",
+                'loesung': "0% USt nur für EU-Länder zulässig. Bitte prüfen."
+            })
+
+        # 2. Kunden-USt-IdNr. vorhanden?
+        if not rechnung.kunde_ust_idnr:
+            warnings.append({
+                'rechnung': rechnung.nummer,
+                'warnung': "Keine Kunden-USt-IdNr. auf Rechnung",
+                'risiko': "Finanzamt könnte 0% USt ablehnen → 19% nachzahlen",
+                'loesung': "Rechnung nachträglich korrigieren und USt-IdNr. ergänzen"
+            })
+
+        # 3. USt-IdNr.-Format plausibel?
+        if rechnung.kunde_ust_idnr:
+            if not validate_ust_idnr_format(rechnung.kunde_ust_idnr, rechnung.land):
+                warnings.append({
+                    'rechnung': rechnung.nummer,
+                    'warnung': f"USt-IdNr. '{rechnung.kunde_ust_idnr}' hat ungültiges Format",
+                    'format': get_expected_format(rechnung.land),
+                    'loesung': "Bitte prüfen und ggf. BZSt-Validierung durchführen"
+                })
+
+        # 4. BZSt-Validierung vorhanden?
+        if rechnung.kunde_ust_idnr and not rechnung.ust_idnr_validiert:
+            warnings.append({
+                'rechnung': rechnung.nummer,
+                'warnung': "USt-IdNr. nicht über BZSt validiert",
+                'risiko': "Bei Betriebsprüfung: Nachweis der Validierung erforderlich",
+                'loesung': "Jetzt validieren: [USt-IdNr. prüfen]"
+            })
+
+    # Zusammenfassung
+    return {
+        'errors': errors,  # Kritische Fehler
+        'warnings': warnings,  # Warnungen
+        'kann_exportieren': len(errors) == 0
+    }
+```
+
+**UI vor UStVA-Export:**
+
+```
+[ UStVA Dezember 2025 erstellen ]
+        ↓
+    Validierung läuft...
+        ↓
+
+┌─────────────────────────────────────────────┐
+│ ⚠️ UStVA-Validierung: 5 Warnungen gefunden  │
+├─────────────────────────────────────────────┤
+│                                             │
+│ Rechnung RE-2025-123:                       │
+│ └─ ⚠️ Keine Kunden-USt-IdNr.                │
+│    Risiko: Finanzamt könnte 0% USt ablehnen│
+│    → Nachzahlung 19% + Zinsen              │
+│    [ Rechnung korrigieren ]                │
+│                                             │
+│ Rechnung RE-2025-145:                       │
+│ └─ ⚠️ USt-IdNr. nicht validiert             │
+│    BE0123456789 (nicht geprüft)            │
+│    [ Jetzt validieren ]                    │
+│                                             │
+│ Rechnung RE-2025-167:                       │
+│ └─ ⚠️ Format ungültig                       │
+│    "BE012345" (zu kurz, erwartet: 10 Ziff.)│
+│    [ Rechnung korrigieren ]                │
+│                                             │
+│ ───────────────────────────────────────────│
+│                                             │
+│ ✅ Kritische Fehler: 0                      │
+│ ⚠️ Warnungen: 5                             │
+│                                             │
+│ UStVA kann erstellt werden, aber Warnungen │
+│ sollten vor Übermittlung ans Finanzamt     │
+│ behoben werden.                            │
+│                                             │
+│ [ Warnungen ignorieren & fortfahren ]      │
+│ [ Alle Rechnungen prüfen ]                 │
+│ [ Abbrechen ]                              │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+**2. ZM-Validierung**
+
+```python
+def validate_zm_before_export(zeitraum):
+    """
+    Prüft Zusammenfassende Meldung VOR Export
+    """
+    errors = []
+    warnings = []
+
+    # Alle innergemeinschaftlichen Lieferungen
+    ig_lieferungen = get_ig_lieferungen(zeitraum)
+
+    for lieferung in ig_lieferungen:
+        # 1. USt-IdNr. MUSS vorhanden sein (ZM-Pflicht!)
+        if not lieferung.kunde_ust_idnr:
+            errors.append({
+                'rechnung': lieferung.nummer,
+                'fehler': "Keine USt-IdNr. - ZM-Export nicht möglich",
+                'pflicht': "Für ZM ist USt-IdNr. PFLICHT (§18a UStG)",
+                'loesung': "Rechnung korrigieren und USt-IdNr. ergänzen"
+            })
+
+        # 2. Format-Validierung
+        if lieferung.kunde_ust_idnr:
+            if not validate_ust_idnr_format(lieferung.kunde_ust_idnr, lieferung.land):
+                errors.append({
+                    'rechnung': lieferung.nummer,
+                    'fehler': f"USt-IdNr. '{lieferung.kunde_ust_idnr}' ungültig",
+                    'loesung': "Format prüfen und korrigieren"
+                })
+
+        # 3. BZSt-Validierung empfohlen
+        if lieferung.kunde_ust_idnr and not lieferung.ust_idnr_validiert:
+            warnings.append({
+                'rechnung': lieferung.nummer,
+                'warnung': "USt-IdNr. nicht validiert",
+                'empfehlung': "Vor ZM-Übermittlung validieren"
+            })
+
+    return {
+        'errors': errors,
+        'warnings': warnings,
+        'kann_exportieren': len(errors) == 0
+    }
+```
+
+**UI vor ZM-Export:**
+
+```
+[ ZM Januar 2026 erstellen ]
+        ↓
+
+┌─────────────────────────────────────────────┐
+│ ❌ ZM-Export nicht möglich                   │
+├─────────────────────────────────────────────┤
+│ 2 kritische Fehler gefunden:                │
+│                                             │
+│ Rechnung RE-2025-234:                       │
+│ └─ ❌ Keine USt-IdNr. vorhanden              │
+│    Ohne USt-IdNr. kann diese Lieferung     │
+│    nicht in der ZM gemeldet werden.        │
+│    → Rechnung aus ZM ausschließen?         │
+│    [ Rechnung korrigieren ]                │
+│    [ Aus ZM ausschließen ]                 │
+│                                             │
+│ Rechnung RE-2025-256:                       │
+│ └─ ❌ USt-IdNr. ungültig: "BE012"           │
+│    Format: BE + 10 Ziffern erwartet        │
+│    [ Rechnung korrigieren ]                │
+│                                             │
+│ ───────────────────────────────────────────│
+│                                             │
+│ Export BLOCKIERT bis Fehler behoben sind.  │
+│                                             │
+│ [ Alle Fehler prüfen ]  [ Abbrechen ]      │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+**3. DATEV-Export-Validierung**
+
+```python
+def validate_datev_export(zeitraum):
+    """
+    Prüft DATEV-Export auf Plausibilität
+    """
+    warnings = []
+
+    buchungen = get_all_buchungen(zeitraum)
+
+    for buchung in buchungen:
+        # 1. Konto 8400 (ig. Lieferung) ohne USt-IdNr.?
+        if buchung.konto_skr03 == '8400':  # ig. Lieferung
+            if not buchung.kunde_ust_idnr:
+                warnings.append({
+                    'buchung': buchung.id,
+                    'warnung': "Konto 8400 (ig. Lieferung) ohne USt-IdNr.",
+                    'risiko': "DATEV-Berater könnte nachfragen",
+                    'empfehlung': "Rechnung ergänzen oder Konto korrigieren"
+                })
+
+        # 2. 0% USt ohne Begründung?
+        if buchung.umsatzsteuer_betrag == 0 and buchung.netto_betrag > 0:
+            if not buchung.steuerbefreiung_grund:  # z.B. "§4 Nr. 1b UStG"
+                warnings.append({
+                    'buchung': buchung.id,
+                    'warnung': "0% USt ohne Begründung",
+                    'empfehlung': "Steuerbefreiungsgrund angeben"
+                })
+
+    return warnings
+```
+
+---
+
+##### **Workflow: Nachträgliche Korrektur**
+
+**Szenario: User findet Fehler nach UStVA-Validierung**
+
+```
+1. UStVA-Validierung zeigt Warnung
+   "Rechnung RE-2025-123: Keine USt-IdNr."
+
+2. User öffnet Rechnung
+   → Datei: rechnung-2025-123.xml (XRechnung)
+   → Oder: rechnung-2025-123.pdf + metadata.json
+
+3. Zwei Optionen:
+
+   Option A: In RechnungsPilot korrigieren
+   ┌────────────────────────────────────┐
+   │ Rechnung RE-2025-123 bearbeiten   │
+   ├────────────────────────────────────┤
+   │ Kunde: Belgischer Kunde GmbH      │
+   │ Betrag: 1.000,00 € (Netto)        │
+   │ USt: 0% (ig. Lieferung)           │
+   │                                    │
+   │ ⚠️ USt-IdNr. fehlt!                 │
+   │                                    │
+   │ Nachträglich ergänzen:             │
+   │ USt-IdNr: [BE0123456789]          │
+   │           [ Validieren ]           │
+   │                                    │
+   │ [ Speichern ]                      │
+   └────────────────────────────────────┘
+
+   Option B: Original-Rechnung neu erstellen
+   → LibreOffice/HTML-Vorlage anpassen
+   → Neu hochladen/importieren
+   → Alte Version ersetzen
+
+4. Nach Korrektur: UStVA neu erstellen
+   → Validierung erneut durchlaufen
+   → Diesmal ohne Warnung ✅
+```
+
+---
+
+##### **Validierungs-Report (Export-Zusammenfassung)**
+
+**Vor jedem Export: Übersicht aller Probleme**
+
+```
+┌───────────────────────────────────────────────────┐
+│ Validierungs-Report: Dezember 2025               │
+├───────────────────────────────────────────────────┤
+│                                                   │
+│ ✅ Geprüfte Rechnungen: 47                        │
+│ ✅ Ohne Probleme: 42                              │
+│ ⚠️ Mit Warnungen: 5                               │
+│ ❌ Mit Fehlern: 0                                 │
+│                                                   │
+│ ───────────────────────────────────────────────── │
+│                                                   │
+│ Warnungen (sollten behoben werden):              │
+│                                                   │
+│ 1. RE-2025-123 (Belgien, 1.000 €)                │
+│    └─ ⚠️ Keine USt-IdNr.                          │
+│       [ Korrigieren ] [ Details ]                │
+│                                                   │
+│ 2. RE-2025-145 (Frankreich, 2.500 €)             │
+│    └─ ⚠️ USt-IdNr. nicht validiert                │
+│       [ Validieren ] [ Details ]                 │
+│                                                   │
+│ 3. RE-2025-167 (Niederlande, 800 €)              │
+│    └─ ⚠️ Gelangensbestätigung fehlt               │
+│       [ Hochladen ] [ Details ]                  │
+│                                                   │
+│ 4. RE-2025-189 (Österreich, 450 €)               │
+│    └─ ⚠️ USt-IdNr.-Format unklar                  │
+│       [ Prüfen ] [ Details ]                     │
+│                                                   │
+│ 5. RE-2025-201 (Italien, 1.200 €)                │
+│    └─ ⚠️ Validierung älter als 1 Jahr             │
+│       [ Neu validieren ] [ Details ]             │
+│                                                   │
+│ ───────────────────────────────────────────────── │
+│                                                   │
+│ Empfehlung:                                      │
+│ Beheben Sie die Warnungen vor UStVA-Abgabe,     │
+│ um Probleme bei Betriebsprüfung zu vermeiden.   │
+│                                                   │
+│ [ Alle korrigieren ]  [ Report drucken ]         │
+│ [ Warnungen ignorieren & exportieren ]           │
+└───────────────────────────────────────────────────┘
+```
+
+---
+
+##### **Unterschied: Fehler vs. Warnung**
+
+| | Fehler ❌ | Warnung ⚠️ |
+|---|---|---|
+| **Export** | Blockiert | Möglich |
+| **Risiko** | Hoch (rechtlich falsch) | Mittel (Betriebsprüfung) |
+| **Beispiel** | ZM ohne USt-IdNr. | UStVA mit unvalidierter USt-IdNr. |
+| **User-Aktion** | MUSS behoben werden | SOLLTE behoben werden |
+| **UI** | Export-Button gesperrt | Export mit Bestätigung |
+
+---
+
+**Status:** ✅ Export-Zeit-Validierung definiert - UStVA, ZM, DATEV mit Validierungs-Report und nachträglicher Korrektur
+
+**Status (alt):** ~~Stammdaten-Validierung~~ → Verschoben auf Version 2.0 (mit Rechnungseditor)
 
 ---
 
