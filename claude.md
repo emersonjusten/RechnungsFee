@@ -4566,6 +4566,7 @@ def calculate_betriebsausgaben(jahr):
 ```python
 EÜR_KATEGORIEN = [
     {'zeile': 25, 'name': 'Wareneinkauf'},
+    {'zeile': 26, 'name': 'Löhne & Gehälter'},  # Auch für Einzelunternehmer mit Mitarbeitern!
     {'zeile': 28, 'name': 'Raumkosten'},
     {'zeile': 32, 'name': 'Fahrtkosten'},
     {'zeile': 34, 'name': 'Werbekosten'},
@@ -4800,25 +4801,37 @@ def calculate_euer(jahr):
     }
 ```
 
-**Export als CSV:**
+**Export-Varianten:**
+
+RechnungsPilot bietet **zwei EÜR-Export-Varianten**:
+
+1. **Amtliche Anlage EÜR** - Für ELSTER/Finanzamt (alle Zeilen, zu denen Daten verfügbar sind)
+2. **Vereinfachte EÜR** - Für User/Jobcenter (übersichtlich, nur Einnahmen - Ausgaben = Gewinn)
+
+**Export 1: Amtliche Anlage EÜR (vollständig)**
 ```python
-def export_euer_csv(euer_data):
+def export_euer_amtlich(euer_data):
     """
-    Exportiert EÜR als CSV für manuelle ELSTER-Eingabe
+    Exportiert vollständige Anlage EÜR für ELSTER
+
+    Befüllt ALLE Zeilen, zu denen Daten verfügbar sind
     """
     csv_data = [
-        ['EÜR', euer_data['jahr']],
+        ['Anlage EÜR', euer_data['jahr']],
         ['', ''],
         ['BETRIEBSEINNAHMEN', ''],
         ['Zeile 11: Umsätze 19% USt', format_euro(euer_data['einnahmen']['zeile_11_umsatz_19'])],
         ['Zeile 12: Umsätze 7% USt', format_euro(euer_data['einnahmen']['zeile_12_umsatz_7'])],
         ['Zeile 14: Kleinunternehmer (§19 UStG)', format_euro(euer_data['einnahmen']['zeile_14_kleinunternehmer'])],
         ['Zeile 15: Innergemeinschaftl. Lieferungen', format_euro(euer_data['einnahmen']['zeile_15_eu_lieferungen'])],
+        ['Zeile 21: Vereinnahmte USt', format_euro(euer_data['einnahmen']['zeile_21_ust_gesamt'])],
         ['', ''],
         ['BETRIEBSAUSGABEN', ''],
         ['Zeile 25: Wareneinkauf', format_euro(euer_data['ausgaben'].get(25, 0))],
+        ['Zeile 26: Löhne & Gehälter', format_euro(euer_data['ausgaben'].get(26, 0))],  # Neu!
         ['Zeile 28: Raumkosten', format_euro(euer_data['ausgaben'].get(28, 0))],
         ['Zeile 32: Fahrtkosten', format_euro(euer_data['ausgaben'].get(32, 0))],
+        ['Zeile 34: Werbekosten', format_euro(euer_data['ausgaben'].get(34, 0))],
         ['Zeile 36: Bürobedarf', format_euro(euer_data['ausgaben'].get(36, 0))],
         ['Zeile 40: Fortbildung', format_euro(euer_data['ausgaben'].get(40, 0))],
         ['Zeile 41: Versicherungen', format_euro(euer_data['ausgaben'].get(41, 0))],
@@ -4827,6 +4840,40 @@ def export_euer_csv(euer_data):
         ['Zeile 60: Vorsteuer', format_euro(euer_data['ausgaben'].get(60, 0))],
         ['', ''],
         ['GEWINN', format_euro(euer_data['gewinn'])],
+    ]
+
+    return csv_data
+
+
+def export_euer_vereinfacht(euer_data):
+    """
+    Exportiert vereinfachte EÜR für User/Jobcenter
+
+    Übersichtlich: Nur Einnahmen - Ausgaben = Gewinn
+    Keine detaillierte Zeilen-Aufschlüsselung
+    """
+    # Summen berechnen
+    einnahmen_gesamt = sum(euer_data['einnahmen'].values())
+    ausgaben_gesamt = sum(euer_data['ausgaben'].values()) + euer_data['afa']['zeile_45_afa']
+
+    csv_data = [
+        ['Einnahmen-Überschuss-Rechnung (vereinfacht)', euer_data['jahr']],
+        ['', ''],
+        ['EINNAHMEN', ''],
+        ['Betriebseinnahmen gesamt', format_euro(einnahmen_gesamt)],
+        ['', ''],
+        ['AUSGABEN', ''],
+        ['Betriebsausgaben gesamt', format_euro(ausgaben_gesamt)],
+        ['  davon: Wareneinkauf', format_euro(euer_data['ausgaben'].get(25, 0))],
+        ['  davon: Löhne & Gehälter', format_euro(euer_data['ausgaben'].get(26, 0))],
+        ['  davon: Raumkosten', format_euro(euer_data['ausgaben'].get(28, 0))],
+        ['  davon: Fahrtkosten', format_euro(euer_data['ausgaben'].get(32, 0))],
+        ['  davon: Sonstige', format_euro(sum(euer_data['ausgaben'].values()) - euer_data['ausgaben'].get(25, 0) - euer_data['ausgaben'].get(26, 0) - euer_data['ausgaben'].get(28, 0) - euer_data['ausgaben'].get(32, 0))],
+        ['  davon: AfA (Abschreibungen)', format_euro(euer_data['afa']['zeile_45_afa'])],
+        ['', ''],
+        ['════════════════════════════════════════', ''],
+        ['GEWINN', format_euro(euer_data['gewinn'])],
+        ['════════════════════════════════════════', ''],
     ]
 
     return csv_data
@@ -4864,10 +4911,33 @@ Dashboard → Steuern → EÜR erstellen
 │  ────────────────────────────────────        │
 │  GEWINN:                 22.040,00 €        │
 │                                              │
-│  [ Als CSV exportieren ]                     │
-│  [ Als PDF exportieren ]                     │
+│  EXPORT:                                     │
+│  [ Amtliche EÜR (ELSTER) ]                   │
+│  [ Vereinfachte EÜR (Jobcenter) ]            │
 │  [ Detailansicht ]                           │
 └──────────────────────────────────────────────┘
+```
+
+**Export-Dialog:**
+```
+┌──────────────────────────────────────────┐
+│ EÜR exportieren                          │
+├──────────────────────────────────────────┤
+│                                          │
+│ Variante:                                │
+│ ● Amtliche Anlage EÜR                   │
+│   Für: ELSTER / Finanzamt                │
+│   Enthält: Alle EÜR-Zeilen mit Daten     │
+│                                          │
+│ ○ Vereinfachte EÜR                      │
+│   Für: Eigene Übersicht / Jobcenter      │
+│   Enthält: Einnahmen - Ausgaben = Gewinn │
+│                                          │
+│ Format:                                  │
+│ ● CSV  ○ PDF  ○ Excel                    │
+│                                          │
+│    [Abbrechen]  [ Exportieren ]          │
+└──────────────────────────────────────────┘
 ```
 
 **Detailansicht:**
@@ -5331,19 +5401,20 @@ EINNAHMEN_KATEGORIEN = [
 ```python
 AUSGABEN_KATEGORIEN = [
     {'id': 10, 'name': 'Wareneinkauf', 'euer_zeile': 25, 'datev_konto': 3400},
-    {'id': 11, 'name': 'Raumkosten (Miete)', 'euer_zeile': 28, 'datev_konto': 4210},
-    {'id': 12, 'name': 'Strom, Gas, Wasser', 'euer_zeile': 28, 'datev_konto': 4240},
-    {'id': 13, 'name': 'Telefon, Internet', 'euer_zeile': 28, 'datev_konto': 4910},
-    {'id': 14, 'name': 'KFZ-Kosten (Benzin)', 'euer_zeile': 32, 'datev_konto': 4530},
-    {'id': 15, 'name': 'KFZ-Versicherung', 'euer_zeile': 32, 'datev_konto': 4570},
-    {'id': 16, 'name': 'Fahrtkosten (ÖPNV)', 'euer_zeile': 32, 'datev_konto': 4670},
-    {'id': 17, 'name': 'Werbekosten', 'euer_zeile': 34, 'datev_konto': 4600},
-    {'id': 18, 'name': 'Bürobedarf', 'euer_zeile': 36, 'datev_konto': 4910},
-    {'id': 19, 'name': 'Software, Lizenzen', 'euer_zeile': 36, 'datev_konto': 4940},
-    {'id': 20, 'name': 'Fortbildung', 'euer_zeile': 40, 'datev_konto': 4945},
-    {'id': 21, 'name': 'Versicherungen (betr.)', 'euer_zeile': 41, 'datev_konto': 4360},
-    {'id': 22, 'name': 'Steuerberatung', 'euer_zeile': 43, 'datev_konto': 4970},
-    {'id': 23, 'name': 'Sonstige Ausgaben', 'euer_zeile': 43, 'datev_konto': 4980},
+    {'id': 11, 'name': 'Löhne & Gehälter', 'euer_zeile': 26, 'datev_konto': 4120},  # Auch für Einzelunternehmer!
+    {'id': 12, 'name': 'Raumkosten (Miete)', 'euer_zeile': 28, 'datev_konto': 4210},
+    {'id': 13, 'name': 'Strom, Gas, Wasser', 'euer_zeile': 28, 'datev_konto': 4240},
+    {'id': 14, 'name': 'Telefon, Internet', 'euer_zeile': 28, 'datev_konto': 4910},
+    {'id': 15, 'name': 'KFZ-Kosten (Benzin)', 'euer_zeile': 32, 'datev_konto': 4530},
+    {'id': 16, 'name': 'KFZ-Versicherung', 'euer_zeile': 32, 'datev_konto': 4570},
+    {'id': 17, 'name': 'Fahrtkosten (ÖPNV)', 'euer_zeile': 32, 'datev_konto': 4670},
+    {'id': 18, 'name': 'Werbekosten', 'euer_zeile': 34, 'datev_konto': 4600},
+    {'id': 19, 'name': 'Bürobedarf', 'euer_zeile': 36, 'datev_konto': 4910},
+    {'id': 20, 'name': 'Software, Lizenzen', 'euer_zeile': 36, 'datev_konto': 4940},
+    {'id': 21, 'name': 'Fortbildung', 'euer_zeile': 40, 'datev_konto': 4945},
+    {'id': 22, 'name': 'Versicherungen (betr.)', 'euer_zeile': 41, 'datev_konto': 4360},
+    {'id': 23, 'name': 'Steuerberatung', 'euer_zeile': 43, 'datev_konto': 4970},
+    {'id': 24, 'name': 'Sonstige Ausgaben', 'euer_zeile': 43, 'datev_konto': 4980},
 ]
 ```
 
