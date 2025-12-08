@@ -7290,9 +7290,9 @@ def calculate_euer(jahr):
 ### **8.8 Lieferantenstammdaten**
 
 **Zweck:**
-- Wiederholte Lieferanten (z.B. Vermieter, Telefon, Strom)
+- Wiederholte Lieferanten (z.B. Vermieter, Telefon, Strom, Material)
 - Autocomplete bei Eingangsrechnungen
-- Ähnlich wie Kundenstamm, aber minimalistischer
+- Detaillierte Kontaktdaten für Bestellungen
 
 **Datenbank:**
 ```sql
@@ -7301,19 +7301,28 @@ CREATE TABLE lieferanten (
 
     -- Stammdaten
     lieferantennummer TEXT UNIQUE,  -- "L-001" (automatisch)
-    name TEXT NOT NULL,  -- "Deutsche Telekom AG"
+    name TEXT NOT NULL,  -- "Deutsche Telekom AG" (Pflichtfeld) ⭐
 
-    -- Adresse
+    -- Adresse ⭐
     strasse TEXT,
     hausnummer TEXT,
     plz TEXT,
     ort TEXT,
     land TEXT DEFAULT 'DE',
 
-    -- Kontakt
-    email TEXT,
+    -- Kontakt (Firma) ⭐
     telefon TEXT,
+    email TEXT,
     website TEXT,
+
+    -- Kontaktperson ⭐ NEU
+    kontaktperson_name TEXT,  -- z.B. "Max Mustermann"
+    kontaktperson_telefon TEXT,
+    kontaktperson_email TEXT,
+
+    -- Unternehmensdetails ⭐ NEU
+    handelsregisternummer TEXT,  -- z.B. "HRB 12345"
+    steuernummer TEXT,
 
     -- Steuerlich
     ust_idnr TEXT,  -- Bei EU-Lieferanten wichtig (Reverse Charge)
@@ -7321,16 +7330,22 @@ CREATE TABLE lieferanten (
     -- Standard-Kategorie (optional)
     standard_kategorie_id INTEGER,  -- z.B. "Telefon/Internet" für Telekom
 
-    -- Metadaten
-    notizen TEXT,
+    -- Metadaten ⭐
+    beschreibung TEXT,  -- Beschreibung / Notizen
     erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    aktualisiert_am TIMESTAMP,
 
     -- Statistiken
     anzahl_rechnungen INTEGER DEFAULT 0,
     ausgaben_gesamt DECIMAL(10,2) DEFAULT 0.00,
+    letzte_rechnung_datum DATE,
 
     FOREIGN KEY (standard_kategorie_id) REFERENCES kategorien(id)
 );
+
+-- Index für schnelle Suche
+CREATE INDEX idx_lieferanten_nummer ON lieferanten(lieferantennummer);
+CREATE INDEX idx_lieferanten_name ON lieferanten(name);
 ```
 
 **UI - Lieferanten verwalten:**
@@ -7384,6 +7399,389 @@ class Eingangsrechnung:
 - Optional: Lieferant aus Stamm wählen
 - Oder: Manuell Name eingeben
 - Bei wiederholtem Lieferanten: "Als Lieferant speichern?" anbieten
+
+---
+
+#### **🖥️ UI: Neuen Lieferanten anlegen** ⭐ NEU
+
+```
+┌──────────────────────────────────────────────────┐
+│ ➕ Neuer Lieferant                               │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│ Name: * ⭐                                       │
+│ [Deutsche Telekom AG_________________]           │
+│                                                  │
+│ ┌────────────────────────────────────────────┐  │
+│ │ Adresse ⭐                                 │  │
+│ ├────────────────────────────────────────────┤  │
+│ │                                            │  │
+│ │ Straße:          Hausnr.:                  │  │
+│ │ [Musterstraße__] [42__]                    │  │
+│ │                                            │  │
+│ │ PLZ:       Ort:                            │  │
+│ │ [53111__]  [Bonn_______________]           │  │
+│ │                                            │  │
+│ │ Land:                                      │  │
+│ │ [Deutschland ▼]                            │  │
+│ │                                            │  │
+│ └────────────────────────────────────────────┘  │
+│                                                  │
+│ ┌────────────────────────────────────────────┐  │
+│ │ Kontakt (Firma) ⭐                         │  │
+│ ├────────────────────────────────────────────┤  │
+│ │                                            │  │
+│ │ Telefon:                                   │  │
+│ │ [📞 0228 181-0___________]                 │  │
+│ │                                            │  │
+│ │ E-Mail:                                    │  │
+│ │ [info@telekom.de_____________]             │  │
+│ │                                            │  │
+│ │ Website:                                   │  │
+│ │ [https://www.telekom.de__]                 │  │
+│ │                                            │  │
+│ └────────────────────────────────────────────┘  │
+│                                                  │
+│ ┌────────────────────────────────────────────┐  │
+│ │ Kontaktperson ⭐ NEU                       │  │
+│ ├────────────────────────────────────────────┤  │
+│ │                                            │  │
+│ │ Name:                                      │  │
+│ │ [Max Mustermann______________]             │  │
+│ │                                            │  │
+│ │ Telefon (direkt):                          │  │
+│ │ [📞 0228 181-1234________]                 │  │
+│ │                                            │  │
+│ │ E-Mail (direkt):                           │  │
+│ │ [max.mustermann@telekom.de___]             │  │
+│ │                                            │  │
+│ └────────────────────────────────────────────┘  │
+│                                                  │
+│ ┌────────────────────────────────────────────┐  │
+│ │ Unternehmensdetails ⭐ NEU                 │  │
+│ ├────────────────────────────────────────────┤  │
+│ │                                            │  │
+│ │ Handelsregisternummer:                     │  │
+│ │ [HRB 12345_______________]                 │  │
+│ │ ℹ️ z.B. "HRB 12345" (Amtsgericht XY)      │  │
+│ │                                            │  │
+│ │ Steuernummer:                              │  │
+│ │ [26/123/12345____________]                 │  │
+│ │                                            │  │
+│ │ USt-IdNr. (bei EU-Lieferanten):            │  │
+│ │ [DE123456789_____]  [Validieren ✓]        │  │
+│ │ ℹ️ Wichtig für Reverse Charge             │  │
+│ │                                            │  │
+│ └────────────────────────────────────────────┘  │
+│                                                  │
+│ Standard-Kategorie:                              │
+│ [Telefon/Internet ▼]                             │
+│ ℹ️ Wird bei Eingangsrechnungen vorgeschlagen    │
+│                                                  │
+│ Beschreibung / Anmerkungen: ⭐                   │
+│ [____________________________________________]   │
+│ [Hauptlieferant für Telefonanlage____________]   │
+│ [Vertragsnummer: 123456789___________________]   │
+│                                                  │
+│ [Abbrechen]                    [Speichern]       │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+#### **📋 Templates für Lieferanten** ⭐ NEU (für später)
+
+**Konzept:**
+Branchenspezifische Vorlagen für Lieferanten-Felder
+
+**Lieferanten-Templates:**
+
+```python
+# templates/lieferanten_templates.py
+LIEFERANTEN_TEMPLATES = {
+    'standard': {
+        'name': 'Standard (Universal)',
+        'felder': [
+            'lieferantennummer', 'name',
+            'strasse', 'plz', 'ort', 'land',
+            'telefon', 'email', 'website',
+            'kontaktperson_name', 'kontaktperson_telefon', 'kontaktperson_email',
+            'handelsregisternummer', 'steuernummer', 'ust_idnr',
+            'standard_kategorie_id', 'beschreibung'
+        ],
+        'pflicht': ['name']
+    },
+
+    'handwerk_material': {
+        'name': 'Handwerk - Material-Lieferanten',
+        'beschreibung': 'Für Handwerker: Baustoff, Werkzeug, Material',
+        'felder': [
+            'lieferantennummer', 'name',
+            'strasse', 'hausnummer', 'plz', 'ort',  # Adresse wichtig (Abholung)
+            'telefon', 'email', 'website',
+            'kontaktperson_name', 'kontaktperson_telefon',  # Für Bestellungen
+            'standard_kategorie_id',  # "Wareneinkauf"
+            'beschreibung'  # "Lieferzeit 2-3 Tage", "Rabatt 5%"
+        ],
+        'pflicht': ['name', 'telefon'],
+        'besonderheiten': [
+            'Telefon Pflicht (für schnelle Bestellungen)',
+            'Adresse wichtig (für Abholung)',
+            'Kontaktperson für Bestellabwicklung'
+        ]
+    },
+
+    'it_software': {
+        'name': 'IT/Software - SaaS & Lizenzen',
+        'beschreibung': 'Für Software-Abos, Cloud-Dienste, Lizenzen',
+        'felder': [
+            'lieferantennummer', 'name',
+            'email', 'website',  # Nur Online-Kontakt
+            'kontaktperson_name', 'kontaktperson_email',  # Support-Kontakt
+            'ust_idnr',  # Oft EU-Anbieter
+            'standard_kategorie_id',  # "Software/SaaS"
+            'beschreibung'  # "Abo-Nr: 123456", "Kündigungsfrist: 3 Monate"
+        ],
+        'pflicht': ['name', 'email'],
+        'besonderheiten': [
+            'Adresse optional (nur Online)',
+            'E-Mail Pflicht (Hauptkommunikation)',
+            'Website wichtig (für Login/Support)',
+            'Beschreibung für Abo-Details'
+        ]
+    },
+
+    'buero_verbrauch': {
+        'name': 'Bürobedarf & Verbrauchsmaterial',
+        'beschreibung': 'Für Büromaterial, Druckerpatronen, etc.',
+        'felder': [
+            'lieferantennummer', 'name',
+            'telefon', 'email', 'website',
+            'kontaktperson_name', 'kontaktperson_telefon', 'kontaktperson_email',
+            'standard_kategorie_id',  # "Bürobedarf"
+            'beschreibung'  # "Kundennummer: K123456", "Lieferung ab 50€ frei"
+        ],
+        'pflicht': ['name', 'telefon'],
+        'besonderheiten': [
+            'Telefon/E-Mail für Bestellungen',
+            'Adresse optional (Lieferung)',
+            'Kontaktperson für Auftragsabwicklung'
+        ]
+    },
+
+    'dienstleister_fixkosten': {
+        'name': 'Dienstleister - Fixkosten',
+        'beschreibung': 'Für Miete, Strom, Telefon, Versicherungen',
+        'felder': [
+            'lieferantennummer', 'name',
+            'strasse', 'plz', 'ort',  # Für Schriftverkehr
+            'telefon', 'email', 'website',
+            'kontaktperson_name', 'kontaktperson_telefon',  # Ansprechpartner
+            'ust_idnr',
+            'standard_kategorie_id',  # "Raumkosten", "Telefon", etc.
+            'beschreibung'  # "Vertragsnummer: 123456", "Kündigungsfrist: 31.12."
+        ],
+        'pflicht': ['name', 'standard_kategorie_id'],
+        'besonderheiten': [
+            'Standard-Kategorie Pflicht (für AutoBooking)',
+            'Beschreibung für Vertragsdaten',
+            'Kontaktperson für Vertragsanpassungen'
+        ]
+    },
+
+    'wareneinkauf_grosshandel': {
+        'name': 'Wareneinkauf - Großhändler',
+        'beschreibung': 'Für Wiederverkäufer, Produzenten, Importeure',
+        'felder': [
+            'lieferantennummer', 'name',
+            'strasse', 'hausnummer', 'plz', 'ort', 'land',
+            'telefon', 'email', 'website',
+            'kontaktperson_name', 'kontaktperson_telefon', 'kontaktperson_email',
+            'handelsregisternummer',  # ⚠️ Wichtig für Verträge
+            'steuernummer', 'ust_idnr',  # ⚠️ Wichtig für Vorsteuerabzug
+            'standard_kategorie_id',  # "Wareneinkauf"
+            'beschreibung'  # "Zahlungsziel: 30 Tage", "Mindestbestellwert: 500€"
+        ],
+        'pflicht': ['name', 'strasse', 'plz', 'ort', 'steuernummer'],
+        'besonderheiten': [
+            'Vollständige Adresse Pflicht',
+            'Steuernummer Pflicht (für Vorsteuerabzug)',
+            'Handelsregisternummer empfohlen',
+            'USt-IdNr. bei EU-Lieferanten Pflicht (Reverse Charge)'
+        ]
+    },
+
+    'freiberufler_subunternehmer': {
+        'name': 'Freiberufler - Subunternehmer',
+        'beschreibung': 'Für Freie Mitarbeiter, Subunternehmer, Dienstleister',
+        'felder': [
+            'lieferantennummer', 'name',
+            'telefon', 'email',
+            'kontaktperson_name',  # = Name (bei Einzelperson)
+            'steuernummer',  # ⚠️ Wichtig für § 13b UStG
+            'ust_idnr',
+            'standard_kategorie_id',
+            'beschreibung'  # "Stundensatz: 80€", "Spezialisierung: PHP"
+        ],
+        'pflicht': ['name', 'telefon', 'email', 'steuernummer'],
+        'besonderheiten': [
+            'Steuernummer Pflicht (für § 13b UStG - Reverse Charge Bau)',
+            'Telefon/E-Mail für Abstimmung',
+            'Beschreibung für Stundensatz/Konditionen'
+        ]
+    }
+}
+
+
+def get_lieferanten_template(branche: str) -> dict:
+    """
+    Gibt Template für Branche zurück
+
+    Args:
+        branche: 'standard', 'handwerk_material', 'it_software', etc.
+
+    Returns:
+        Template-Dict mit Feldern, Pflichtfeldern, Besonderheiten
+    """
+    return LIEFERANTEN_TEMPLATES.get(branche, LIEFERANTEN_TEMPLATES['standard'])
+```
+
+**UI - Template-Auswahl (Setup-Wizard):**
+
+```
+┌──────────────────────────────────────────────────┐
+│ Setup-Wizard: Lieferanten-Arten                  │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│ Welche Art von Lieferanten hast du hauptsächlich?│
+│ (Du kannst mehrere wählen)                       │
+│                                                  │
+│ ☑ Material-Lieferanten (Handwerk)                │
+│   Baustoff, Werkzeug, Material                   │
+│                                                  │
+│ ☑ IT/Software (SaaS & Lizenzen)                  │
+│   Software-Abos, Cloud-Dienste                   │
+│                                                  │
+│ ☐ Bürobedarf & Verbrauchsmaterial                │
+│   Büromaterial, Druckerpatronen                  │
+│                                                  │
+│ ☑ Dienstleister - Fixkosten                      │
+│   Miete, Strom, Telefon, Versicherungen          │
+│                                                  │
+│ ☐ Wareneinkauf - Großhändler                     │
+│   Wiederverkäufer, Produzenten                   │
+│                                                  │
+│ ☐ Freiberufler - Subunternehmer                  │
+│   Freie Mitarbeiter, Dienstleister               │
+│                                                  │
+│ ℹ️ Template passt Felder an deine Anforderungen!│
+│                                                  │
+│ [Zurück]                         [Weiter]        │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+**Vorteile:**
+- ✅ **Fokussiert**: Nur relevante Felder für Lieferanten-Art
+- ✅ **Geführt**: Pflichtfelder an Branche angepasst
+- ✅ **Compliance**: § 13b UStG (Reverse Charge) bei Subunternehmern
+- ✅ **Flexibel**: Mehrere Templates gleichzeitig nutzbar
+
+**Status:** 🔜 **Für v2.0 geplant** (v1.0 nutzt "Standard"-Template)
+
+---
+
+#### **💻 Python-Modell** ⭐ NEU
+
+```python
+# models.py
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Optional
+
+@dataclass
+class Lieferant:
+    id: Optional[int] = None
+
+    # Stammdaten
+    lieferantennummer: Optional[str] = None  # "L-001" (auto)
+    name: str = ''  # Pflichtfeld ⭐
+
+    # Adresse
+    strasse: Optional[str] = None
+    hausnummer: Optional[str] = None
+    plz: Optional[str] = None
+    ort: Optional[str] = None
+    land: str = 'DE'
+
+    # Kontakt (Firma)
+    telefon: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+
+    # Kontaktperson ⭐ NEU
+    kontaktperson_name: Optional[str] = None
+    kontaktperson_telefon: Optional[str] = None
+    kontaktperson_email: Optional[str] = None
+
+    # Unternehmensdetails ⭐ NEU
+    handelsregisternummer: Optional[str] = None
+    steuernummer: Optional[str] = None
+
+    # Steuerlich
+    ust_idnr: Optional[str] = None
+
+    # Standard-Kategorie
+    standard_kategorie_id: Optional[int] = None
+
+    # Metadaten
+    beschreibung: Optional[str] = None  # ⭐ NEU
+    erstellt_am: Optional[datetime] = None
+    aktualisiert_am: Optional[datetime] = None
+
+    # Statistiken
+    anzahl_rechnungen: int = 0
+    ausgaben_gesamt: Decimal = Decimal('0.00')
+    letzte_rechnung_datum: Optional[date] = None
+
+    @property
+    def display_name(self) -> str:
+        """
+        Anzeigename für UI
+        """
+        if self.kontaktperson_name:
+            return f"{self.name} ({self.kontaktperson_name})"
+        return self.name
+
+    def validate(self) -> list[str]:
+        """
+        Validiert Pflichtfelder
+        """
+        errors = []
+
+        if not self.name:
+            errors.append("Name ist Pflichtfeld")
+
+        # USt-IdNr. bei EU-Lieferanten empfohlen (Reverse Charge)
+        if self.land != 'DE' and self.land in EU_LAENDER and not self.ust_idnr:
+            errors.append("Warnung: USt-IdNr. bei EU-Lieferanten empfohlen (für Reverse Charge)")
+
+        # Steuernummer bei Subunternehmern Pflicht (§ 13b UStG)
+        if self.standard_kategorie_id and self._ist_bau_dienstleistung():
+            if not self.steuernummer:
+                errors.append("Warnung: Steuernummer bei Bau-Dienstleistern Pflicht (§ 13b UStG)")
+
+        return errors
+
+    def _ist_bau_dienstleistung(self) -> bool:
+        """
+        Prüft ob Kategorie = Bau-Dienstleistung (für § 13b UStG)
+        """
+        # Implementierung hängt von Kategorien ab
+        return False  # Placeholder
+```
 
 ---
 
