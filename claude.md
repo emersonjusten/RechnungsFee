@@ -4220,7 +4220,251 @@ Einstellungen > Steuern
 
 ---
 
-**Status:** ✅ Kategorie 6.1-6.5 definiert - Hybrid-Ansatz (MVP: Zahlen vorbereiten, v2.0: ELSTER-Integration), Berechnung, Kleinunternehmer, Ist/Soll-Versteuerung, SGBII-Konformität (Ist-Versteuerung Pflicht bei Transferleistungen).
+### **6.6 Bürgergeld-Freibeträge (Einkommensanrechnung)**
+
+**Für erwerbstätige Bürgergeld-Empfänger gibt es Einkommensfreibeträge:**
+
+#### **Grundfreibetrag: 100 € brutto anrechnungsfrei**
+
+**Zusammensetzung des Grundfreibetrags (100 €):**
+
+1. **Versicherungsbeiträge:**
+   - Kranken- und Pflegeversicherung (für nicht gesetzlich Versicherte)
+   - Altersvorsorge (für Personen ohne Versicherungspflicht in gesetzlicher Rentenversicherung)
+
+2. **Geförderte Altersvorsorge:**
+   - Riester-Beiträge nach § 82 EStG
+   - Bis Mindesteigenbeitrag nach § 86 EStG
+
+3. **Werbungskosten:**
+   - Mit Erzielung des Einkommens verbundene notwendige Ausgaben
+   - Fahrtkosten: 0,20 €/km (bei Einkommen > 400 €, wenn Summe > 100 €)
+
+#### **Gestaffelte Anrechnung über 100 €:**
+
+| Bruttoeinkommen | Anrechnung | Anrechnungsfrei | Beispiel (brutto) | Anrechnungsfrei (konkret) |
+|-----------------|------------|-----------------|-------------------|---------------------------|
+| **0-100 €** | 0% | 100% | 80 € | 80 € |
+| **101-520 €** | 80% | **20%** | 500 € | 100 € + (400 € × 20%) = **180 €** |
+| **521-1000 €** | 70% | **30%** ⭐ | 800 € | 100 € + (400 € × 20%) + (280 € × 30%) = **264 €** |
+| **1001-1200 €** | 90% | **10%** | 1.150 € | 100 € + (400 € × 20%) + (480 € × 30%) + (150 € × 10%) = **339 €** |
+| **1001-1500 €** (mit Kind) | 90% | **10%** | 1.400 € | 100 € + (400 € × 20%) + (480 € × 30%) + (400 € × 10%) = **364 €** |
+| **Über 1200/1500 €** | 100% | 0% | 1.300 € | 339 € (keine weitere Anrechnung) |
+
+⭐ **NEU seit 2023:** Stufe 521-1000 € mit 30% anrechnungsfrei (vorher 20%)
+
+**Grenzen:**
+- **Ohne Kind:** 1.200 € Brutto
+- **Mit Kind:** 1.500 € Brutto
+
+#### **Berechnungsbeispiele:**
+
+**Beispiel 1: Einkommen 400 €**
+```
+Brutto:                400,00 €
+- Grundfreibetrag:    -100,00 €
+- Anrechnungsfrei 20%:  -60,00 € (300 € × 20%)
+= Angerechnet:         240,00 €
+→ Bürgergeld wird um 240 € gekürzt
+```
+
+**Beispiel 2: Einkommen 750 € (NEU: 30% ab 521 €)**
+```
+Brutto:                750,00 €
+- Grundfreibetrag:    -100,00 €
+Verbleibend:           650,00 €
+
+Staffelung:
+  101-520 €: 420 € × 20% = 84,00 € anrechnungsfrei
+  521-750 €: 230 € × 30% = 69,00 € anrechnungsfrei (NEU!)
+
+Gesamt anrechnungsfrei: 100 + 84 + 69 = 253,00 €
+= Angerechnet:                          497,00 €
+→ Bürgergeld wird um 497 € gekürzt
+```
+
+**Beispiel 3: Einkommen 1.100 € (ohne Kind)**
+```
+Brutto:                1.100,00 €
+- Grundfreibetrag:      -100,00 €
+Verbleibend:          1.000,00 €
+
+Staffelung:
+  101-520 €: 420 € × 20% =  84,00 € anrechnungsfrei
+  521-1000 €: 480 € × 30% = 144,00 € anrechnungsfrei (NEU!)
+  1001-1100 €: 100 € × 10% =  10,00 € anrechnungsfrei
+
+Gesamt anrechnungsfrei: 100 + 84 + 144 + 10 = 338,00 €
+= Angerechnet:                                762,00 €
+→ Bürgergeld wird um 762 € gekürzt
+```
+
+#### **RechnungsPilot-Implementierung:**
+
+```python
+def calculate_buergergeld_anrechnung(brutto_einkommen: Decimal, hat_kind: bool = False) -> dict:
+    """
+    Berechnet Bürgergeld-Einkommensanrechnung (Stand 2023)
+
+    Returns:
+        {
+            'brutto': Decimal,
+            'grundfreibetrag': Decimal,
+            'anrechnungsfrei_gesamt': Decimal,
+            'angerechnet': Decimal,
+            'staffelung': list  # Details der Berechnung
+        }
+    """
+    grundfreibetrag = Decimal('100.00')
+
+    if brutto_einkommen <= grundfreibetrag:
+        return {
+            'brutto': brutto_einkommen,
+            'grundfreibetrag': brutto_einkommen,
+            'anrechnungsfrei_gesamt': brutto_einkommen,
+            'angerechnet': Decimal('0.00'),
+            'staffelung': []
+        }
+
+    verbleibend = brutto_einkommen - grundfreibetrag
+    anrechnungsfrei = grundfreibetrag
+    staffelung = []
+
+    # Stufe 1: 101-520 € (20% anrechnungsfrei)
+    if verbleibend > 0:
+        stufe1_max = Decimal('420.00')  # 520 - 100
+        stufe1_betrag = min(verbleibend, stufe1_max)
+        stufe1_frei = stufe1_betrag * Decimal('0.20')
+        anrechnungsfrei += stufe1_frei
+        staffelung.append({
+            'bereich': '101-520 €',
+            'betrag': stufe1_betrag,
+            'prozent': 20,
+            'anrechnungsfrei': stufe1_frei
+        })
+        verbleibend -= stufe1_betrag
+
+    # Stufe 2: 521-1000 € (30% anrechnungsfrei) ⭐ NEU!
+    if verbleibend > 0:
+        stufe2_max = Decimal('480.00')  # 1000 - 520
+        stufe2_betrag = min(verbleibend, stufe2_max)
+        stufe2_frei = stufe2_betrag * Decimal('0.30')  # NEU: 30% statt 20%
+        anrechnungsfrei += stufe2_frei
+        staffelung.append({
+            'bereich': '521-1000 €',
+            'betrag': stufe2_betrag,
+            'prozent': 30,
+            'anrechnungsfrei': stufe2_frei
+        })
+        verbleibend -= stufe2_betrag
+
+    # Stufe 3: 1001-1200 € bzw. 1001-1500 € (mit Kind) (10% anrechnungsfrei)
+    if verbleibend > 0:
+        stufe3_max = Decimal('300.00') if not hat_kind else Decimal('600.00')  # 1500 - 1000 mit Kind
+        stufe3_betrag = min(verbleibend, stufe3_max)
+        stufe3_frei = stufe3_betrag * Decimal('0.10')
+        anrechnungsfrei += stufe3_frei
+        staffelung.append({
+            'bereich': f'1001-{1200 if not hat_kind else 1500} €',
+            'betrag': stufe3_betrag,
+            'prozent': 10,
+            'anrechnungsfrei': stufe3_frei
+        })
+        verbleibend -= stufe3_betrag
+
+    # Alles darüber: 100% angerechnet (0% frei)
+    if verbleibend > 0:
+        staffelung.append({
+            'bereich': f'Über {1200 if not hat_kind else 1500} €',
+            'betrag': verbleibend,
+            'prozent': 0,
+            'anrechnungsfrei': Decimal('0.00')
+        })
+
+    angerechnet = brutto_einkommen - anrechnungsfrei
+
+    return {
+        'brutto': brutto_einkommen,
+        'grundfreibetrag': grundfreibetrag,
+        'anrechnungsfrei_gesamt': anrechnungsfrei,
+        'angerechnet': angerechnet,
+        'staffelung': staffelung
+    }
+```
+
+#### **UI-Ansicht (EKS-Export / Einkommensübersicht):**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Einkommensberechnung für Bürgergeld (Bewilligungszeitraum)│
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│ Zeitraum: Januar - Juni 2025 (6 Monate)                 │
+│                                                          │
+│ EINNAHMEN:                                               │
+│   Betriebseinnahmen:          4.200,00 € (monatl. Ø 700 €)│
+│                                                          │
+│ AUSGABEN:                                                │
+│   Betriebsausgaben:          -1.800,00 €                 │
+│   ────────────────────────────────────────               │
+│   Gewinn/Monat (Ø):             400,00 €                 │
+│                                                          │
+│ ANRECHNUNG (pro Monat):                                  │
+│   Bruttoeinkommen:              400,00 €                 │
+│   - Grundfreibetrag:          - 100,00 €                 │
+│   - Anrechnungsfrei (20%):    -  60,00 € (300 € × 20%)  │
+│   ──────────────────────────────────────                 │
+│   Angerechnetes Einkommen:      240,00 €                 │
+│                                                          │
+│ 💡 Ihr Bürgergeld wird um ca. 240 € pro Monat gekürzt   │
+│                                                          │
+│    [EKS-Formular exportieren]  [Details anzeigen]        │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Detail-Ansicht:**
+
+```
+┌──────────────────────────────────────────┐
+│ Staffelung Einkommensanrechnung          │
+├──────────────────────────────────────────┤
+│                                          │
+│ Bruttoeinkommen:      400,00 €           │
+│                                          │
+│ 1. Grundfreibetrag:                      │
+│    0-100 €            100,00 € (100%)    │
+│                                          │
+│ 2. Staffelung:                           │
+│    101-400 €          300,00 €           │
+│    Anrechnungsfrei:    60,00 € (20%)     │
+│    Angerechnet:       240,00 € (80%)     │
+│                                          │
+│ ────────────────────────────────────     │
+│                                          │
+│ Gesamt anrechnungsfrei:  160,00 €        │
+│ Gesamt angerechnet:      240,00 €        │
+│                                          │
+│              [ Schließen ]               │
+└──────────────────────────────────────────┘
+```
+
+#### **Hinweise für User:**
+
+⚠️ **Wichtig:**
+- Anrechnung erfolgt auf **Brutto-Einkommen** (Einnahmen - Ausgaben)
+- Werbungskosten sind bereits im Grundfreibetrag (100 €) enthalten
+- Fahrtkosten können zusätzlich abgesetzt werden (0,20 €/km bei Einkommen > 400 €)
+- Bei schwankendem Einkommen: Durchschnitt des Bewilligungszeitraums
+
+💡 **Tipp:**
+- Einkommen unter 100 €/Monat: Keine Anrechnung
+- Einkommen 100-520 €: 20% anrechnungsfrei zusätzlich
+- Einkommen 521-1000 €: **30% anrechnungsfrei** (NEU seit 2023!)
+- Mit Kind: Höhere Grenze (1.500 € statt 1.200 €)
+
+---
+
+**Status:** ✅ Kategorie 6.1-6.6 definiert - Hybrid-Ansatz (MVP: Zahlen vorbereiten, v2.0: ELSTER-Integration), Berechnung, Kleinunternehmer, Ist/Soll-Versteuerung, SGBII-Konformität (Ist-Versteuerung Pflicht bei Transferleistungen).
 
 ---
 
