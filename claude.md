@@ -6600,6 +6600,208 @@ def validate_steuernummer(stnr: str) -> bool:
 
 ---
 
+### **8.2.3 Berufsrechtliche Pflichtangaben**
+
+**Bestimmte Berufe haben Pflichtangaben auf Rechnungen:**
+
+#### **Kammerberufe:**
+
+| Beruf | Pflichtangabe | Beispiel |
+|-------|--------------|----------|
+| **Handwerker** | Handwerkskammer + Handwerksrollennummer | "Eingetragen bei Handwerkskammer Oldenburg, Nr. HWK-123456" |
+| **Arzt** | Ärztekammer + Approbationsnummer (optional) | "Mitglied der Ärztekammer Niedersachsen" |
+| **Rechtsanwalt** | Rechtsanwaltskammer + Zulassung | "Zugelassen bei Rechtsanwaltskammer Oldenburg" |
+| **Steuerberater** | Steuerberaterkammer + Berufsbezeichnung | "Mitglied der Steuerberaterkammer Niedersachsen" |
+| **Architekt** | Architektenkammer + Berufsbezeichnung | "Mitglied der Architektenkammer Niedersachsen" |
+| **Ingenieur** | Ingenieurkammer (je nach Bundesland) | "Mitglied der Ingenieurkammer Niedersachsen" |
+
+#### **IHK-Mitglieder:**
+
+**Gewerbetreibende (IHK-pflichtig):**
+- IHK + Registernummer (optional, aber empfohlen)
+- Beispiel: "IHK Oldenburg, Registernummer IHK-789012"
+
+#### **Datenmodell:**
+
+```python
+class User:
+    # ... (bestehende Felder)
+
+    # Berufsrechtliche Angaben (optional, je nach Beruf)
+    kammer_typ: str  # 'handwerk', 'aerzte', 'rechtsanwaelte', 'steuerberater', 'architekten', 'ingenieure', 'ihk', 'keine'
+    kammer_name: str  # "Handwerkskammer Oldenburg"
+    kammer_nummer: str  # "HWK-123456" oder "IHK-789012"
+
+    # Zusätzliche Angaben (je nach Beruf)
+    berufsbezeichnung: str  # "Rechtsanwalt", "Steuerberater", "Architekt"
+    approbation: str  # Nur für Ärzte/Apotheker
+```
+
+#### **UI-Eingabe im Setup-Wizard:**
+
+```
+┌─────────────────────────────────────────────────┐
+│ RechnungsPilot - Ersteinrichtung (Schritt 1/4) │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ BERUFSRECHTLICHE ANGABEN                        │
+│                                                 │
+│ Sind Sie Mitglied einer Kammer/eines           │
+│ Berufsverbandes?                                │
+│                                                 │
+│ ○ Nein                                          │
+│ ● Ja                                            │
+│                                                 │
+│   Kammer/Verband: [Handwerkskammer ▼]          │
+│                   □ Keine                       │
+│                   ● Handwerkskammer             │
+│                   □ Ärztekammer                 │
+│                   □ Rechtsanwaltskammer         │
+│                   □ Steuerberaterkammer         │
+│                   □ Architektenkammer           │
+│                   □ Ingenieurkammer             │
+│                   □ IHK                         │
+│                                                 │
+│   Name:   [Handwerkskammer Oldenburg____]      │
+│   Nummer: [HWK-123456___________________]      │
+│                                                 │
+│   ℹ️ Diese Angaben erscheinen auf Rechnungen   │
+│      (gesetzliche Pflicht bei Kammerberufen)   │
+│                                                 │
+│              [← Zurück]      [Weiter →]         │
+└─────────────────────────────────────────────────┘
+```
+
+#### **Rechtliche Grundlagen:**
+
+**§ 14 Abs. 4 UStG - Pflichtangaben auf Rechnungen:**
+
+Für Kammerberufe zusätzlich erforderlich:
+- Berufsbezeichnung
+- Zuständige Kammer
+- Kammernummer (je nach Kammer)
+
+**Beispiele auf Rechnung:**
+
+**1. Handwerker:**
+```
+Max Mustermann
+Elektroinstallateur
+Musterstraße 42, 26121 Oldenburg
+
+Eingetragen bei der Handwerkskammer Oldenburg
+Handwerksrollennummer: HWK-123456
+```
+
+**2. Rechtsanwalt:**
+```
+Dr. Erika Musterfrau
+Rechtsanwältin
+Musterstraße 42, 26121 Oldenburg
+
+Zugelassen bei der Rechtsanwaltskammer Oldenburg
+```
+
+**3. Arzt:**
+```
+Dr. med. Max Mustermann
+Facharzt für Allgemeinmedizin
+Musterstraße 42, 26121 Oldenburg
+
+Mitglied der Ärztekammer Niedersachsen
+```
+
+**4. IHK-Mitglied:**
+```
+Musterfirma GmbH
+Geschäftsführer: Max Mustermann
+Musterstraße 42, 26121 Oldenburg
+
+IHK Oldenburg, Registernummer: IHK-789012
+```
+
+#### **Automatische Angabe auf Rechnungen:**
+
+```python
+def generate_rechnung_kopf(user, kunde):
+    """
+    Generiert Rechnungskopf mit Pflichtangaben
+    """
+    kopf = f"{user.firmenname or f'{user.vorname} {user.nachname}'}\n"
+
+    # Berufsbezeichnung (wenn vorhanden)
+    if user.berufsbezeichnung:
+        kopf += f"{user.berufsbezeichnung}\n"
+
+    kopf += f"{user.strasse}, {user.plz} {user.ort}\n\n"
+
+    # Kammer-Angaben (Pflicht bei Kammerberufen)
+    if user.kammer_typ != 'keine':
+        if user.kammer_typ == 'handwerk':
+            kopf += f"Eingetragen bei der {user.kammer_name}\n"
+            kopf += f"Handwerksrollennummer: {user.kammer_nummer}\n\n"
+
+        elif user.kammer_typ == 'rechtsanwaelte':
+            kopf += f"Zugelassen bei der {user.kammer_name}\n\n"
+
+        elif user.kammer_typ == 'aerzte':
+            kopf += f"Mitglied der {user.kammer_name}\n"
+            if user.approbation:
+                kopf += f"Approbation: {user.approbation}\n"
+            kopf += "\n"
+
+        elif user.kammer_typ == 'ihk':
+            kopf += f"{user.kammer_name}"
+            if user.kammer_nummer:
+                kopf += f", Registernummer: {user.kammer_nummer}"
+            kopf += "\n\n"
+
+        else:
+            # Generisch: Steuerberater, Architekten, Ingenieure
+            kopf += f"Mitglied der {user.kammer_name}\n\n"
+
+    return kopf
+```
+
+#### **Validierung:**
+
+```python
+def validate_kammerangaben(user):
+    """
+    Prüft ob Kammer-Angaben vollständig sind
+    """
+    errors = []
+
+    if user.kammer_typ != 'keine':
+        if not user.kammer_name:
+            errors.append({
+                'field': 'kammer_name',
+                'message': 'Kammer-Name ist Pflicht bei Kammerberufen'
+            })
+
+        # Handwerker: Nummer ist Pflicht
+        if user.kammer_typ == 'handwerk' and not user.kammer_nummer:
+            errors.append({
+                'field': 'kammer_nummer',
+                'message': 'Handwerksrollennummer ist Pflicht für Handwerker'
+            })
+
+    return errors
+```
+
+#### **Hinweis für User:**
+
+⚠️ **Wichtig:**
+- Bei Kammerberufen sind diese Angaben **gesetzlich verpflichtend** auf Rechnungen
+- Fehlende Angaben können zu Abmahnungen führen
+- RechnungsPilot fügt diese automatisch in Rechnungsvorlagen ein
+
+💡 **Tipp:**
+- Falls unsicher: Auf der Website Ihrer Kammer nachsehen
+- Bei IHK: Pflicht zur Mitgliedschaft, Angabe auf Rechnung empfohlen
+
+---
+
 ### **8.3 Kategorien (Einnahmen/Ausgaben)**
 
 **Zweck:**
