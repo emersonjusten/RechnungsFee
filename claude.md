@@ -9435,6 +9435,38 @@ class KundenService:
 
 ---
 
+#### **⚠️ RECHTLICHER HINWEIS - BITTE LESEN!**
+
+```
+┌──────────────────────────────────────────────────┐
+│ ⚠️ WICHTIG: Keine Rechtsberatung!               │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│ Diese Dokumentation stellt KEINE Rechtsberatung │
+│ dar!                                             │
+│                                                  │
+│ Widerrufsfristen können sich ändern!            │
+│                                                  │
+│ ✅ BITTE VOR EINSATZ PRÜFEN:                    │
+│                                                  │
+│ 1. Aktuelle Widerrufsfrist in Deutschland:      │
+│    → §355 BGB, §312g BGB                        │
+│    → Stand dieser Doku: 14 Tage (Januar 2025)  │
+│                                                  │
+│ 2. Quellen zur Prüfung:                          │
+│    → https://www.gesetze-im-internet.de/bgb/    │
+│    → Verbraucherzentrale                        │
+│    → Rechtsanwalt konsultieren!                 │
+│                                                  │
+│ 3. Bei Änderung:                                 │
+│    → Konstante WIDERRUFSFRIST_TAGE anpassen     │
+│    → Siehe config.py                            │
+│                                                  │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
 #### **📋 B2B vs. B2C Anforderungen**
 
 ```
@@ -9490,7 +9522,10 @@ class KundenService:
 - ✅ **PFLICHT bei Fernabsatzverträgen** (§312g BGB)
 - **Wie:** PDF-Anhang oder in Rechnung integriert
 - **Wann:** Bei jeder Rechnung (Fernabsatz)
-- **Frist:** 14 Tage ab Vertragsschluss
+- **Frist:** **14 Tage** ab Vertragsschluss (§355 BGB) ⚠️ **BITTE PRÜFEN!**
+  - Stand: Januar 2025
+  - Konfigurierbar in `config.py` → `WIDERRUFSFRIST_TAGE`
+  - **Bei Gesetzesänderung:** Konstante anpassen!
 
 **Ausnahmen (keine Widerrufsbelehrung erforderlich):**
 - Dienstleistungen vollständig erbracht
