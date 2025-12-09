@@ -13238,7 +13238,33 @@ Nach 1 Jahr (100 Rechnungen/Monat):  ~2 GB
 
 ### **🔐 Verschlüsselung**
 
-**Optional, aber empfohlen** (besonders bei Netzwerk-Backups!)
+**⭐ STANDARDMÄSSIG AKTIVIERT** (Privacy by Default - DSGVO Art. 25)
+
+**Warum Verschlüsselung als Standard?**
+
+1. ✅ **DSGVO Art. 32** fordert Verschlüsselung explizit
+2. ✅ **DSGVO Art. 34 Abs. 3 lit. a:** Bei Verschlüsselung **KEINE Meldepflicht** bei Verlust/Diebstahl!
+3. ✅ **Schutz vor physischem Zugriff:** USB-Stick verloren? Kein Problem!
+4. ✅ **Geschäftsgeheimnisse geschützt:** Umsätze, Preise, Kundenbeziehungen
+5. ✅ **Kein Bußgeld-Risiko** bei Datenverlust
+
+**Was passiert OHNE Verschlüsselung bei Verlust?**
+```
+❌ Meldepflicht an Datenschutzbehörde (72h)
+❌ Benachrichtigung ALLER Kunden
+❌ Bußgeld bis 20 Mio. € oder 4% Jahresumsatz
+❌ Reputationsschaden
+```
+
+**Mit Verschlüsselung:**
+```
+✅ Keine Meldepflicht (Art. 34 Abs. 3 DSGVO)
+✅ Keine Kundenbenachrichtigung nötig
+✅ Daten bleiben geschützt
+✅ Kein Bußgeld-Risiko
+```
+
+**Deaktivierung möglich:** User kann Verschlüsselung deaktivieren (opt-out), aber nur mit expliziter Risiko-Warnung.
 
 **Algorithmus:** AES-256 (industry standard)
 
@@ -13294,29 +13320,66 @@ def encrypt_backup(backup_file: str, password: str) -> str:
     return encrypted_file
 ```
 
-**Passwort-Verwaltung:**
+**UI - Standard-Einrichtung:**
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ 🔐 Backup-Verschlüsselung                               │
+│ 🔐 Backup-Verschlüsselung (DSGVO-konform)               │
 ├─────────────────────────────────────────────────────────┤
-│ ☑ Backups verschlüsseln (AES-256)                      │
+│ ☑ Backups verschlüsseln (empfohlen, DSGVO Art. 32)     │
+│                                                         │
+│ ℹ️ Warum Verschlüsselung wichtig ist:                   │
+│ • Schutz bei Diebstahl/Verlust (Art. 32 DSGVO)         │
+│ • Keine Meldepflicht bei Datenverlust (Art. 34 DSGVO)  │
+│ • Geschäftsgeheimnisse geschützt                       │
+│ • Kundendaten bleiben vertraulich                      │
 │                                                         │
 │ Verschlüsselungs-Passwort:                              │
 │ ┌─────────────────────────────────────────────────┐     │
-│ │ [●●●●●●●●●●●●●●●●●●●●]                          │     │
+│ │ [●●●●●●●●●●●●●●●●●●●●]  [Generieren]           │     │
 │ └─────────────────────────────────────────────────┘     │
+│ Stärke: ████████████████░░░░ Stark                      │
 │                                                         │
 │ Passwort wiederholen:                                   │
 │ ┌─────────────────────────────────────────────────┐     │
 │ │ [●●●●●●●●●●●●●●●●●●●●]                          │     │
 │ └─────────────────────────────────────────────────┘     │
 │                                                         │
-│ ⚠️ WICHTIG: Passwort gut aufbewahren!                  │
-│    Ohne Passwort ist das Backup nicht wiederherstellbar│
-│                                                         │
 │ ☑ Passwort in System-Keychain speichern (empfohlen)    │
-│   (Linux: gnome-keyring, macOS: Keychain,              │
-│    Windows: Credential Manager)                         │
+│   (Automatische Wiederherstellung ohne Passwort-Eingabe)│
+│                                                         │
+│ ⚠️ WICHTIG: Passwort zusätzlich sicher aufbewahren!    │
+│    (z.B. Passwort-Manager, Notiz im Safe)              │
+│    Ohne Passwort ist Backup nicht wiederherstellbar!   │
+│                                                         │
+│ [Erweiterte Optionen...]                [Speichern]     │
+└─────────────────────────────────────────────────────────┘
+```
+
+**UI - Erweiterte Optionen (Deaktivierung mit Warnung):**
+```
+┌─────────────────────────────────────────────────────────┐
+│ ⚙️ Erweiterte Backup-Optionen                           │
+├─────────────────────────────────────────────────────────┤
+│ Verschlüsselung:                                        │
+│ ☐ Verschlüsselung deaktivieren (NICHT empfohlen!)      │
+│                                                         │
+│ ⚠️ WARNUNG - Datenschutzrisiko!                        │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ Unverschlüsselte Backups sind ein Risiko:      │     │
+│ │                                                 │     │
+│ │ Bei Diebstahl/Verlust MÜSSEN Sie:              │     │
+│ │ • Datenschutzbehörde informieren (Art. 33)     │     │
+│ │ • ALLE Kunden benachrichtigen (Art. 34)        │     │
+│ │ • Mit Bußgeldern rechnen (bis 20 Mio. €)      │     │
+│ │                                                 │     │
+│ │ Nur deaktivieren wenn:                          │     │
+│ │ • Backup-Medium physisch gesichert (Safe)       │     │
+│ │ • Kein Transport (bleibt im verschl. Raum)     │     │
+│ │ • Sie das Risiko verstehen und akzeptieren     │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ ☐ Ich verstehe das Risiko und verzichte auf            │
+│   Verschlüsselung (Haftung liegt bei mir)              │
 │                                                         │
 │ [Abbrechen]                              [Speichern]    │
 └─────────────────────────────────────────────────────────┘
@@ -13471,9 +13534,9 @@ CREATE TABLE backups (
     dateigroesse INTEGER, -- Bytes
     hash_sha256 TEXT, -- Integritätsprüfung
 
-    -- Verschlüsselung
-    verschluesselt BOOLEAN DEFAULT 0,
-    verschluesselungs_algorithmus TEXT, -- 'AES-256-CBC'
+    -- Verschlüsselung (standardmäßig aktiviert!)
+    verschluesselt BOOLEAN DEFAULT 1, -- Privacy by Default (DSGVO Art. 25)
+    verschluesselungs_algorithmus TEXT DEFAULT 'AES-256-CBC',
 
     -- Metadaten
     software_version TEXT, -- RechnungsPilot-Version
@@ -13524,9 +13587,10 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
 **Features:**
 - ✅ Manuelles Backup (On-Demand)
 - ✅ Automatisches Backup (Zeitplan)
-- ✅ Verschlüsselung optional (AES-256)
-- ✅ Passwort in System-Keychain
-- ✅ Backup vor Software-Update (automatisch)
+- ✅ **Verschlüsselung STANDARD** (AES-256, opt-out mit Warnung) ⭐
+- ✅ Passwort in System-Keychain (automatisch)
+- ✅ Passwort-Generator (sichere Passwörter)
+- ✅ Backup vor Software-Update (automatisch, Pflicht)
 - ✅ Vollständige Wiederherstellung
 - ⏸️ Einzeldatei-Wiederherstellung - optional (v1.1)
 
@@ -13556,7 +13620,11 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
 1. ✅ **Lokale Backups für v1.0** (keine Cloud-Abhängigkeit)
 2. ✅ **Mehrere Backup-Ziele parallel** (3-2-1-Regel)
 3. ✅ **Vollbackup + optional Inkrementell** (v1.0/v1.1)
-4. ✅ **Verschlüsselung optional** (AES-256 mit PBKDF2)
+4. ✅ **Verschlüsselung STANDARDMÄSSIG AKTIVIERT** ⭐
+   - AES-256 mit PBKDF2 (100.000 Iterationen)
+   - Privacy by Default (DSGVO Art. 25)
+   - Deaktivierung möglich (opt-out mit Warnung)
+   - Passwort in System-Keychain
 5. ✅ **Automatischer Backup-Zeitplan** (täglich/wöchentlich)
 6. ✅ **Backup vor Update** (Pflicht, automatisch)
 7. ⏸️ **Cloud-Backup** → v2.0
@@ -13567,7 +13635,10 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
 - NAS/Netzlaufwerk (SMB/CIFS)
 - Lokale Freigaben (anderer PC)
 
-**GoBD-Konformität:**
+**DSGVO-Konformität:** ⭐
+- **Art. 32 DSGVO:** Verschlüsselung als technische Schutzmaßnahme
+- **Art. 34 Abs. 3 DSGVO:** Bei Verschlüsselung KEINE Meldepflicht bei Verlust
+- **Art. 25 DSGVO:** Privacy by Default (Verschlüsselung standardmäßig aktiv)
 - SHA256-Hash für Integrität
 - Unveränderbare Backups
 - Vollständige Aufzeichnung (Metadaten)
