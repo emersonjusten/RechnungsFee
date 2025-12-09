@@ -8786,6 +8786,623 @@ Ihre Daten werden NICHT an Dritte weitergegeben (außer gesetzlich verpflichtet,
 
 ---
 
+### **8.12 Wiederkehrende Rechnungen** 🔄 (für v2.0 vorgemerkt)
+
+**Status:** 📋 **Für v2.0 geplant** (NICHT in MVP v1.0)
+
+**Zweck:**
+- Automatische Verwaltung von wiederkehrenden Ausgaben
+- Erinnerungen für fällige Zahlungen
+- Historische Nachverfolgung von Abonnements
+
+---
+
+#### **💡 Anwendungsfälle**
+
+**Typische wiederkehrende Rechnungen:**
+
+```
+┌─────────────────────────────────────────────────┐
+│ 🔄 WIEDERKEHRENDE AUSGABEN                      │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ 📅 MONATLICH:                                   │
+│   - Software-Abos (Adobe, Microsoft 365, etc.) │
+│   - SaaS-Tools (Hosting, Cloud-Dienste)        │
+│   - Miete (Büro, Lager)                         │
+│   - Versicherungen (monatliche Zahlung)        │
+│   - Leasingraten                                │
+│                                                 │
+│ 📅 JÄHRLICH:                                    │
+│   - Domain-Renewals (example.com)              │
+│   - Software-Lizenzen (jährliche Verlängerung) │
+│   - Versicherungen (Jahresprämie)              │
+│   - Mitgliedschaften (IHK, Verbände)           │
+│   - Zertifikate (SSL, Code Signing)            │
+│                                                 │
+│ 📅 QUARTALSWEISE:                               │
+│   - Steuervorauszahlungen                       │
+│   - Quartalsberichte (Abonnements)             │
+│                                                 │
+│ 📅 WÖCHENTLICH:                                 │
+│   - Reinigungsdienst                            │
+│   - Wartungsverträge                            │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
+#### **🎯 Geplante Features**
+
+**Kernfunktionen:**
+
+1. **Intervalle:**
+   - Täglich, Wöchentlich, Monatlich, Quartalsweise, Halbjährlich, Jährlich
+   - Benutzerdefinierte Intervalle (z.B. "alle 3 Monate", "alle 2 Jahre")
+
+2. **Automatische Erstellung:**
+   - Rechnung wird automatisch importiert/erstellt
+   - E-Mail-Benachrichtigung bei Fälligkeit
+   - Optional: Automatische Zahlung (z.B. via SEPA-Lastschrift)
+
+3. **Vorlagen:**
+   - Wiederkehrende Rechnung basiert auf Vorlage
+   - Betrag, Lieferant, Kategorie vordefiniert
+   - Automatische Anpassung (z.B. Preiserhöhungen)
+
+4. **Benachrichtigungen:**
+   - X Tage vor Fälligkeit (z.B. 7 Tage vorher)
+   - Bei überfälligen Rechnungen
+   - Bei automatischer Verlängerung
+
+5. **Start-/Enddatum:**
+   - Startdatum: Wann beginnt das Abo?
+   - Enddatum: Optional (z.B. Vertrag läuft 2 Jahre)
+   - Automatische Verlängerung (mit Kündigungsfrist)
+
+6. **Preisverlauf:**
+   - Historische Preise tracken
+   - Erkennung von Preiserhöhungen
+   - Vergleich Jahr-zu-Jahr
+
+---
+
+#### **📊 Datenbank-Schema**
+
+```sql
+CREATE TABLE wiederkehrende_rechnungen (
+    id INTEGER PRIMARY KEY,
+
+    -- Stammdaten
+    bezeichnung TEXT NOT NULL,  -- "Adobe Creative Cloud Abo"
+    beschreibung TEXT,
+
+    -- Lieferant (optional, wenn aus Stammdaten)
+    lieferant_id INTEGER,
+    lieferant_name TEXT,  -- Falls nicht im Stamm
+
+    -- Kategorie
+    kategorie_id INTEGER NOT NULL,
+
+    -- Betrag
+    betrag_netto DECIMAL(10,2) NOT NULL,
+    betrag_brutto DECIMAL(10,2) NOT NULL,
+    umsatzsteuer_satz DECIMAL(5,2) DEFAULT 19.0,
+
+    -- Intervall
+    intervall_typ TEXT NOT NULL,  -- 'taeglich', 'woechentlich', 'monatlich', 'quartalsweise', 'halbjaehrlich', 'jaehrlich', 'benutzerdefiniert'
+    intervall_anzahl INTEGER DEFAULT 1,  -- z.B. 3 für "alle 3 Monate"
+    intervall_einheit TEXT,  -- 'tage', 'wochen', 'monate', 'jahre' (bei benutzerdefiniert)
+
+    -- Start-/Enddatum
+    start_datum DATE NOT NULL,
+    ende_datum DATE,  -- NULL = unbegrenzt
+    kuendigungsfrist_tage INTEGER,  -- z.B. 30 Tage
+
+    -- Verlängerung
+    automatische_verlaengerung BOOLEAN DEFAULT 1,
+    verlaengerung_intervall_monate INTEGER DEFAULT 12,  -- z.B. 12 Monate Verlängerung
+
+    -- Benachrichtigungen
+    benachrichtigung_tage_vorher INTEGER DEFAULT 7,  -- 7 Tage vor Fälligkeit
+    benachrichtigung_email TEXT,
+
+    -- Status
+    ist_aktiv BOOLEAN DEFAULT 1,
+    ist_pausiert BOOLEAN DEFAULT 0,
+
+    -- Letzte Erstellung
+    letzte_rechnung_datum DATE,
+    naechste_rechnung_datum DATE,  -- Berechnet
+
+    -- Metadaten
+    erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    aktualisiert_am TIMESTAMP,
+
+    -- Foreign Keys
+    FOREIGN KEY (lieferant_id) REFERENCES lieferanten(id),
+    FOREIGN KEY (kategorie_id) REFERENCES kategorien(id),
+
+    -- Constraints
+    CHECK (intervall_typ IN ('taeglich', 'woechentlich', 'monatlich', 'quartalsweise', 'halbjaehrlich', 'jaehrlich', 'benutzerdefiniert'))
+);
+
+-- Historie der generierten Rechnungen
+CREATE TABLE wiederkehrende_rechnungen_historie (
+    id INTEGER PRIMARY KEY,
+    wiederkehrende_rechnung_id INTEGER NOT NULL,
+    rechnung_id INTEGER,  -- Verknüpfung zur eigentlichen Rechnung
+    faelligkeit_datum DATE NOT NULL,
+    erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    betrag_netto DECIMAL(10,2),
+    betrag_brutto DECIMAL(10,2),
+    status TEXT,  -- 'erstellt', 'bezahlt', 'ueberfaellig', 'storniert'
+
+    FOREIGN KEY (wiederkehrende_rechnung_id) REFERENCES wiederkehrende_rechnungen(id),
+    FOREIGN KEY (rechnung_id) REFERENCES rechnungen(id)
+);
+
+-- Index für schnelle Abfragen
+CREATE INDEX idx_wiederkehrend_naechste ON wiederkehrende_rechnungen(naechste_rechnung_datum);
+CREATE INDEX idx_wiederkehrend_aktiv ON wiederkehrende_rechnungen(ist_aktiv);
+```
+
+---
+
+#### **💻 Code-Implementierung (Konzept)**
+
+```python
+from dataclasses import dataclass
+from datetime import date, timedelta
+from decimal import Decimal
+from typing import Optional
+
+@dataclass
+class WiederkehrendeRechnung:
+    id: Optional[int] = None
+    bezeichnung: str = ''  # "Adobe Creative Cloud Abo"
+    beschreibung: Optional[str] = None
+
+    # Lieferant
+    lieferant_id: Optional[int] = None
+    lieferant_name: Optional[str] = None
+
+    # Kategorie
+    kategorie_id: int = 0
+
+    # Betrag
+    betrag_netto: Decimal = Decimal('0.00')
+    betrag_brutto: Decimal = Decimal('0.00')
+    umsatzsteuer_satz: Decimal = Decimal('19.0')
+
+    # Intervall
+    intervall_typ: str = 'monatlich'  # 'taeglich', 'woechentlich', 'monatlich', etc.
+    intervall_anzahl: int = 1
+    intervall_einheit: Optional[str] = None
+
+    # Start-/Enddatum
+    start_datum: date = date.today()
+    ende_datum: Optional[date] = None
+    kuendigungsfrist_tage: Optional[int] = None
+
+    # Verlängerung
+    automatische_verlaengerung: bool = True
+    verlaengerung_intervall_monate: int = 12
+
+    # Benachrichtigungen
+    benachrichtigung_tage_vorher: int = 7
+    benachrichtigung_email: Optional[str] = None
+
+    # Status
+    ist_aktiv: bool = True
+    ist_pausiert: bool = False
+
+    # Letzte Erstellung
+    letzte_rechnung_datum: Optional[date] = None
+    naechste_rechnung_datum: Optional[date] = None
+
+    def berechne_naechstes_datum(self) -> date:
+        """
+        Berechnet nächstes Fälligkeitsdatum
+
+        Returns:
+            Nächstes Datum
+        """
+        if not self.letzte_rechnung_datum:
+            # Erste Rechnung
+            return self.start_datum
+
+        # Intervall berechnen
+        if self.intervall_typ == 'taeglich':
+            delta = timedelta(days=self.intervall_anzahl)
+        elif self.intervall_typ == 'woechentlich':
+            delta = timedelta(weeks=self.intervall_anzahl)
+        elif self.intervall_typ == 'monatlich':
+            # Monatlich ist komplexer (unterschiedliche Monatslängen)
+            naechstes = self.letzte_rechnung_datum
+            for _ in range(self.intervall_anzahl):
+                naechstes = self._add_month(naechstes)
+            return naechstes
+        elif self.intervall_typ == 'quartalsweise':
+            naechstes = self.letzte_rechnung_datum
+            for _ in range(3 * self.intervall_anzahl):
+                naechstes = self._add_month(naechstes)
+            return naechstes
+        elif self.intervall_typ == 'halbjaehrlich':
+            naechstes = self.letzte_rechnung_datum
+            for _ in range(6 * self.intervall_anzahl):
+                naechstes = self._add_month(naechstes)
+            return naechstes
+        elif self.intervall_typ == 'jaehrlich':
+            naechstes = self.letzte_rechnung_datum
+            for _ in range(12 * self.intervall_anzahl):
+                naechstes = self._add_month(naechstes)
+            return naechstes
+        elif self.intervall_typ == 'benutzerdefiniert':
+            if self.intervall_einheit == 'tage':
+                delta = timedelta(days=self.intervall_anzahl)
+            elif self.intervall_einheit == 'wochen':
+                delta = timedelta(weeks=self.intervall_anzahl)
+            elif self.intervall_einheit == 'monate':
+                naechstes = self.letzte_rechnung_datum
+                for _ in range(self.intervall_anzahl):
+                    naechstes = self._add_month(naechstes)
+                return naechstes
+            elif self.intervall_einheit == 'jahre':
+                naechstes = self.letzte_rechnung_datum
+                for _ in range(12 * self.intervall_anzahl):
+                    naechstes = self._add_month(naechstes)
+                return naechstes
+        else:
+            raise ValueError(f"Ungültiger Intervall-Typ: {self.intervall_typ}")
+
+        return self.letzte_rechnung_datum + delta
+
+    def _add_month(self, datum: date) -> date:
+        """
+        Fügt einen Monat zu einem Datum hinzu
+
+        Args:
+            datum: Ausgangsdatum
+
+        Returns:
+            Datum + 1 Monat
+        """
+        month = datum.month
+        year = datum.year
+
+        if month == 12:
+            month = 1
+            year += 1
+        else:
+            month += 1
+
+        # Tag anpassen (z.B. 31.01. + 1 Monat = 28./29.02.)
+        day = min(datum.day, self._days_in_month(year, month))
+
+        return date(year, month, day)
+
+    def _days_in_month(self, year: int, month: int) -> int:
+        """Gibt Anzahl Tage im Monat zurück"""
+        if month in [1, 3, 5, 7, 8, 10, 12]:
+            return 31
+        elif month in [4, 6, 9, 11]:
+            return 30
+        else:  # Februar
+            # Schaltjahr?
+            if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0):
+                return 29
+            else:
+                return 28
+
+    def ist_faellig(self) -> bool:
+        """
+        Prüft, ob Rechnung fällig ist
+
+        Returns:
+            True, wenn heute >= naechste_rechnung_datum
+        """
+        if not self.ist_aktiv or self.ist_pausiert:
+            return False
+
+        if not self.naechste_rechnung_datum:
+            self.naechste_rechnung_datum = self.berechne_naechstes_datum()
+
+        return date.today() >= self.naechste_rechnung_datum
+
+    def ist_ende_erreicht(self) -> bool:
+        """
+        Prüft, ob Enddatum erreicht ist
+
+        Returns:
+            True, wenn ende_datum erreicht
+        """
+        if not self.ende_datum:
+            return False  # Unbegrenzt
+
+        return date.today() >= self.ende_datum
+
+
+# Cron-Job: Täglich ausführen
+def erstelle_faellige_rechnungen():
+    """
+    Erstellt automatisch fällige wiederkehrende Rechnungen
+
+    Wird täglich ausgeführt (z.B. 06:00 Uhr morgens)
+    """
+    heute = date.today()
+
+    # Alle aktiven wiederkehrenden Rechnungen finden
+    wiederkehrend = db.execute("""
+        SELECT * FROM wiederkehrende_rechnungen
+        WHERE ist_aktiv = 1
+          AND ist_pausiert = 0
+          AND naechste_rechnung_datum <= ?
+          AND (ende_datum IS NULL OR ende_datum >= ?)
+    """, (heute, heute)).fetchall()
+
+    for wr in wiederkehrend:
+        # Rechnung erstellen
+        rechnung = erstelle_rechnung_aus_vorlage(wr)
+
+        # Historie speichern
+        db.execute("""
+            INSERT INTO wiederkehrende_rechnungen_historie
+            (wiederkehrende_rechnung_id, rechnung_id, faelligkeit_datum, betrag_netto, betrag_brutto, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (wr.id, rechnung.id, heute, wr.betrag_netto, wr.betrag_brutto, 'erstellt'))
+
+        # Nächstes Datum berechnen
+        wr.letzte_rechnung_datum = heute
+        wr.naechste_rechnung_datum = wr.berechne_naechstes_datum()
+        db.save(wr)
+
+        # Benachrichtigung senden
+        if wr.benachrichtigung_email:
+            sende_benachrichtigung(wr, rechnung)
+
+        print(f"✅ Wiederkehrende Rechnung erstellt: {wr.bezeichnung} ({rechnung.rechnungsnummer})")
+
+
+def sende_erinnerungen():
+    """
+    Sendet Erinnerungen X Tage vor Fälligkeit
+
+    Wird täglich ausgeführt
+    """
+    heute = date.today()
+
+    wiederkehrend = db.execute("""
+        SELECT * FROM wiederkehrende_rechnungen
+        WHERE ist_aktiv = 1
+          AND ist_pausiert = 0
+          AND benachrichtigung_email IS NOT NULL
+    """).fetchall()
+
+    for wr in wiederkehrend:
+        tage_bis_faelligkeit = (wr.naechste_rechnung_datum - heute).days
+
+        if tage_bis_faelligkeit == wr.benachrichtigung_tage_vorher:
+            # Erinnerung senden
+            sende_erinnerungs_email(wr)
+            print(f"📧 Erinnerung gesendet: {wr.bezeichnung} (fällig in {tage_bis_faelligkeit} Tagen)")
+```
+
+---
+
+#### **🎨 UI-Mockups**
+
+**Übersicht Wiederkehrende Rechnungen:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ Wiederkehrende Rechnungen                                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│ [ + Neue wiederkehrende Rechnung ]            [🔍 Suchen: ___]     │
+│                                                                     │
+│ Filter: [Alle ▼] [Aktiv ▼] [Fällig ▼]                             │
+│                                                                     │
+│ Bezeichnung              │ Lieferant       │ Intervall │ Nächste  │
+│─────────────────────────┼─────────────────┼───────────┼──────────│
+│ 📦 Adobe Creative Cloud │ Adobe Systems   │ Monatlich │ 01.01.26 │
+│                          │ 52,99 € brutto  │           │ in 7 Tg  │
+│─────────────────────────┼─────────────────┼───────────┼──────────│
+│ 🌐 Domain example.com   │ STRATO          │ Jährlich  │ 15.03.26 │
+│                          │ 12,00 € brutto  │           │ in 3 Mon │
+│─────────────────────────┼─────────────────┼───────────┼──────────│
+│ 💼 Microsoft 365        │ Microsoft       │ Monatlich │ 05.01.26 │
+│                          │ 12,50 € brutto  │           │ ⚠️ in 1 T│
+│─────────────────────────┼─────────────────┼───────────┼──────────│
+│ 🏢 Büromiete             │ Hausverwaltung  │ Monatlich │ 01.01.26 │
+│                          │ 500,00 € brutto │           │ in 7 Tg  │
+│                                                                     │
+│ Gesamt: 4 Abos │ Monatliche Kosten: ~565,49 € │ ⚠️ 1 fällig       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Neue Wiederkehrende Rechnung anlegen:**
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ Neue wiederkehrende Rechnung                             │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│ STAMMDATEN:                                              │
+│                                                          │
+│ Bezeichnung *:  [Adobe Creative Cloud Abo___________]   │
+│ Beschreibung:   [Foto & Video Plan___________________]  │
+│                                                          │
+│ Lieferant:      [Adobe Systems ▼]                       │
+│ Kategorie *:    [Software & Lizenzen ▼]                 │
+│                                                          │
+│ BETRAG:                                                  │
+│                                                          │
+│ Netto:          [44,53] €                               │
+│ USt-Satz:       [19] %                                  │
+│ Brutto:         52,99 € (berechnet)                     │
+│                                                          │
+│ INTERVALL:                                               │
+│                                                          │
+│ Typ:            ● Monatlich                             │
+│                 ○ Quartalsweise                         │
+│                 ○ Halbjährlich                          │
+│                 ○ Jährlich                              │
+│                 ○ Benutzerdefiniert: [__] [Monate ▼]   │
+│                                                          │
+│ LAUFZEIT:                                                │
+│                                                          │
+│ Startdatum *:   [01.01.2024]                            │
+│ Enddatum:       [ ] Unbegrenzt                          │
+│                 [ ] Bis: [__________]                   │
+│                                                          │
+│ ☑ Automatische Verlängerung (12 Monate)                │
+│ Kündigungsfrist: [30] Tage                              │
+│                                                          │
+│ BENACHRICHTIGUNGEN:                                      │
+│                                                          │
+│ ☑ Erinnerung senden [7] Tage vor Fälligkeit            │
+│ E-Mail:         [admin@beispiel.de___________________]  │
+│                                                          │
+│ [Abbrechen]                             [Speichern]     │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Dashboard-Widget:**
+
+```
+┌────────────────────────────────────────┐
+│ 🔄 Wiederkehrende Rechnungen           │
+├────────────────────────────────────────┤
+│                                        │
+│ ⚠️ FÄLLIG HEUTE (1):                  │
+│ - Microsoft 365 (12,50 €)             │
+│   [Rechnung erstellen]                 │
+│                                        │
+│ 📅 FÄLLIG DIESE WOCHE (2):            │
+│ - Adobe Creative Cloud (52,99 €)      │
+│ - Büromiete (500,00 €)                │
+│                                        │
+│ 📊 STATISTIKEN:                        │
+│ - Aktive Abos: 4                       │
+│ - Monatlich: ~565 €                    │
+│ - Jährlich: ~6.785 €                   │
+│                                        │
+│ [Alle anzeigen →]                      │
+└────────────────────────────────────────┘
+```
+
+---
+
+#### **📋 Workflow-Beispiele**
+
+**Workflow 1: Domain-Renewal**
+
+```
+1. SETUP (einmalig):
+   ┌──────────────────────────────────┐
+   │ Bezeichnung: Domain example.com  │
+   │ Lieferant: STRATO                │
+   │ Kategorie: Domains & Hosting     │
+   │ Betrag: 12,00 € (brutto)         │
+   │ Intervall: Jährlich              │
+   │ Start: 15.03.2024                │
+   │ Erinnerung: 30 Tage vorher       │
+   └──────────────────────────────────┘
+
+2. AUTOMATISCH (14.02.2025):
+   📧 E-Mail: "Domain example.com läuft in 30 Tagen ab (15.03.2025)"
+
+3. AUTOMATISCH (15.03.2025):
+   ✅ Rechnung automatisch erstellt (RE-2025-042)
+   📧 E-Mail: "Rechnung für Domain example.com erstellt"
+
+4. MANUELL (User):
+   - Rechnung prüfen
+   - Zahlung buchen
+   - Fertig!
+```
+
+**Workflow 2: Software-Abo mit Preisänderung**
+
+```
+1. SETUP (einmalig):
+   Bezeichnung: Adobe Creative Cloud
+   Betrag: 44,53 € netto (52,99 € brutto)
+   Intervall: Monatlich
+
+2. MONAT 1-12:
+   ✅ Automatische Rechnungserstellung
+   ✅ Betrag: 52,99 €
+
+3. MONAT 13 (Preiserhöhung):
+   ⚠️ User erhält Rechnung: 59,99 € (statt 52,99 €)
+
+4. USER-AKTION:
+   ┌──────────────────────────────────┐
+   │ ⚠️ PREISÄNDERUNG ERKANNT         │
+   ├──────────────────────────────────┤
+   │ Alt: 52,99 €                     │
+   │ Neu: 59,99 €                     │
+   │ Änderung: +7,00 € (+13,2%)       │
+   │                                  │
+   │ Möchtest du die wiederkehrende   │
+   │ Rechnung aktualisieren?          │
+   │                                  │
+   │ [Nein] [Ja, aktualisieren]       │
+   └──────────────────────────────────┘
+```
+
+---
+
+#### **✅ Vorteile**
+
+1. ✅ **Keine vergessenen Zahlungen**: Automatische Erinnerungen
+2. ✅ **Budgetplanung**: Monatliche/jährliche Kosten im Blick
+3. ✅ **Historische Daten**: Preisentwicklung nachvollziehbar
+4. ✅ **Zeitersparnis**: Keine manuelle Erfassung jedes Mal
+5. ✅ **Kündigungsfristen**: Rechtzeitige Erinnerung vor Verlängerung
+6. ✅ **Kostenoptimierung**: Erkennung ungenutzter Abos
+
+---
+
+#### **🎯 MVP-Entscheidung**
+
+**NICHT in v1.0:**
+- v1.0 fokussiert auf Import & Verwaltung bestehender Rechnungen
+- Wiederkehrende Rechnungen erfordern Automatisierung (Cron-Jobs, E-Mail)
+- Komplex, aber nicht essentiell für Basis-Buchhaltung
+
+**Für v2.0 geplant:**
+- Nach v1.0 Release
+- User-Feedback abwarten (Bedarf?)
+- Integration mit Benachrichtigungs-System
+
+---
+
+#### **📝 Zusammenfassung**
+
+**Feature:** Wiederkehrende Rechnungen für Abos, Domains, Lizenzen, Miete, etc.
+
+**Kernfunktionen:**
+- Intervalle (täglich, monatlich, jährlich, benutzerdefiniert)
+- Automatische Erstellung
+- Benachrichtigungen (X Tage vorher)
+- Start-/Enddatum mit Kündigungsfrist
+- Preisverlauf & Historie
+
+**Status:** 🔜 **Für v2.0 vorgemerkt**
+
+**Anwendungsfälle:**
+- Software-Abos (Adobe, Microsoft, etc.)
+- Domains & Hosting
+- Miete & Versicherungen
+- Lizenzen & Zertifikate
+- Mitgliedschaften
+
+---
+
 ### **8.9 Produktstammdaten ✅ GEKLÄRT**
 
 **Status:** ✅ **Entscheidung getroffen**
