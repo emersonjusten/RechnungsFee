@@ -12976,13 +12976,612 @@ def import_bank_csv(datei: Path, template_id: int) -> ImportErgebnis:
 
 ---
 
+## **Kategorie 10.1: Backup-Strategie**
+
+### **🎯 Anforderungen**
+
+**Kernanforderungen:**
+- ✅ **Lokale Backups** (keine Cloud-Abhängigkeit)
+- ✅ **Mehrere Backup-Ziele parallel** (3-2-1-Regel)
+- ✅ **Automatische & manuelle Backups**
+- ✅ **Verschlüsselung optional** (AES-256)
+- ✅ **GoBD-konform** (Unveränderbarkeit, Vollständigkeit)
+- ⏸️ **Cloud-Backup** (v2.0 - zurückgestellt)
+
+---
+
+### **📂 Backup-Ziele**
+
+#### **1. Lokales Verzeichnis**
+```
+Beispiel: /backup/rechnungspilot/
+         C:\Backups\RechnungsPilot\
+```
+**Eigenschaften:**
+- ✅ Einfachste Variante
+- ✅ Schnell
+- ⚠️ Gleiche Festplatte → bei HDD-Ausfall verloren
+- **Use Case:** Schnelle Wiederherstellung, Test-Backups
+
+#### **2. Externe Festplatte / USB-Stick**
+```
+Beispiel: /media/usb-backup/
+         D:\  (Windows - Wechseldatenträger)
+```
+**Eigenschaften:**
+- ✅ Physisch getrennt (Fire/Theft Protection)
+- ✅ Offline (Ransomware-Schutz)
+- ⚠️ Manuelles Anschließen erforderlich
+- **Use Case:** Tägliches Backup vor Feierabend
+
+#### **3. Netzlaufwerk / NAS**
+```
+SMB/CIFS-Share:
+  smb://nas.local/backups/rechnungspilot
+  \\NAS\Backups\RechnungsPilot
+
+NFS:
+  nfs://192.168.1.100/backups
+```
+**Eigenschaften:**
+- ✅ Immer verfügbar (automatische Backups)
+- ✅ Zentrale Verwaltung
+- ✅ Meist RAID-geschützt
+- ✅ Mehrere Geräte können zugreifen
+- **Use Case:** Automatische nächtliche Backups
+
+**Gängige NAS-Systeme:**
+- Synology DiskStation
+- QNAP
+- TrueNAS
+- Eigener Linux-Server (Samba)
+
+#### **4. Lokale Freigabe (anderer PC im Netzwerk)**
+```
+Windows-Freigabe:
+  \\DESKTOP-PC\Freigaben\Backups
+
+Linux Samba-Share:
+  smb://192.168.1.50/shared/backups
+```
+**Eigenschaften:**
+- ✅ Keine zusätzliche Hardware nötig
+- ⚠️ Abhängig von anderem PC (muss laufen)
+- **Use Case:** Kleine Büros, Heimnetzwerk
+
+---
+
+### **🔄 3-2-1-Backup-Regel**
+
+**Empfehlung für RechnungsPilot:**
+
+```
+3 Kopien der Daten:
+  1. Original (Produktiv-Datenbank)
+  2. Lokales Backup (externe HDD)
+  3. Netzwerk-Backup (NAS)
+
+2 verschiedene Medien:
+  - SSD/HDD (Produktiv)
+  - Externe HDD (Backup 1)
+  - NAS (anderes Medium - Backup 2)
+
+1 Kopie offsite:
+  - Optional: USB-HDD im Bankschließfach
+  - Optional: Cloud (v2.0)
+```
+
+**Konfiguration in RechnungsPilot:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ ⚙️ Backup-Konfiguration                                 │
+├─────────────────────────────────────────────────────────┤
+│ Backup-Ziel 1 (Primär):                                │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ ● Netzlaufwerk (NAS)                            │     │
+│ │   Pfad: smb://nas.local/backups/rechnungspilot  │     │
+│ │   Benutzer: [backup_user]                       │     │
+│ │   Passwort: [***********]                       │     │
+│ │   [Verbindung testen] ✅ Verbunden              │     │
+│ │                                                 │     │
+│ │   Zeitplan:                                     │     │
+│ │   ☑ Täglich um 02:00 Uhr                        │     │
+│ │   ☑ Verschlüsselung aktiviert (AES-256)        │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ Backup-Ziel 2 (Sekundär):                              │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ ● Externe Festplatte                            │     │
+│ │   Pfad: /media/usb-backup/rechnungspilot        │     │
+│ │   [Pfad wählen...]                              │     │
+│ │                                                 │     │
+│ │   Zeitplan:                                     │     │
+│ │   ○ Automatisch (wenn angeschlossen)            │     │
+│ │   ● Nur manuell                                 │     │
+│ │   ☑ Verschlüsselung aktiviert (AES-256)        │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ Backup-Ziel 3 (Optional):                              │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ ○ Deaktiviert                                   │     │
+│ │   [+ Weiteres Ziel hinzufügen]                  │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ [Jetzt Backup durchführen]      [Speichern]            │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### **💾 Backup-Strategien**
+
+#### **1. Vollbackup (Full Backup)**
+
+**Beschreibung:** Komplette Kopie aller Daten
+
+**Vorteile:**
+- ✅ Einfachste Wiederherstellung (nur ein Backup nötig)
+- ✅ Unabhängig von vorherigen Backups
+
+**Nachteile:**
+- ❌ Viel Speicherplatz
+- ❌ Langsam (bei großen Datenmengen)
+
+**Empfehlung für RechnungsPilot:**
+- **Wöchentlich:** Vollbackup (z.B. Sonntag Nacht)
+- **Aufbewahrung:** 4 Wochen (4 Vollbackups)
+
+**Dateistruktur:**
+```
+/backup/rechnungspilot/
+├── full_2025-12-09_020000.tar.gz.enc
+├── full_2025-12-02_020000.tar.gz.enc
+├── full_2025-11-25_020000.tar.gz.enc
+└── full_2025-11-18_020000.tar.gz.enc
+```
+
+#### **2. Inkrementelles Backup**
+
+**Beschreibung:** Nur geänderte Dateien seit dem letzten Backup (egal ob Full oder Inkrementell)
+
+**Vorteile:**
+- ✅ Sehr schnell
+- ✅ Wenig Speicherplatz
+
+**Nachteile:**
+- ❌ Wiederherstellung komplex (braucht Full + alle inkrementellen Backups)
+- ❌ Bei Verlust eines inkrementellen Backups → Kette unterbrochen
+
+**Empfehlung für RechnungsPilot:**
+- **Täglich:** Inkrementelles Backup
+- **Aufbewahrung:** 30 Tage
+
+**Dateistruktur:**
+```
+/backup/rechnungspilot/
+├── full_2025-12-09_020000.tar.gz.enc          # Vollbackup (Sonntag)
+├── incr_2025-12-10_020000.tar.gz.enc          # +Montag
+├── incr_2025-12-11_020000.tar.gz.enc          # +Dienstag
+├── incr_2025-12-12_020000.tar.gz.enc          # +Mittwoch
+├── incr_2025-12-13_020000.tar.gz.enc          # +Donnerstag
+├── incr_2025-12-14_020000.tar.gz.enc          # +Freitag
+└── incr_2025-12-15_020000.tar.gz.enc          # +Samstag
+```
+
+#### **3. Differentielles Backup**
+
+**Beschreibung:** Nur geänderte Dateien seit dem letzten Vollbackup
+
+**Vorteile:**
+- ✅ Schneller als Vollbackup
+- ✅ Einfachere Wiederherstellung als inkrementell (nur Full + letztes Diff)
+
+**Nachteile:**
+- ⚠️ Wächst im Laufe der Woche (alle Änderungen seit Full)
+
+**Empfehlung für RechnungsPilot:**
+- Alternative zu inkrementell
+- Einfacher für Einsteiger
+
+**Dateistruktur:**
+```
+/backup/rechnungspilot/
+├── full_2025-12-09_020000.tar.gz.enc          # Vollbackup (Sonntag)
+├── diff_2025-12-10_020000.tar.gz.enc          # Änderungen seit Sonntag
+├── diff_2025-12-11_020000.tar.gz.enc          # Änderungen seit Sonntag
+├── diff_2025-12-12_020000.tar.gz.enc          # Änderungen seit Sonntag
+└── diff_2025-12-13_020000.tar.gz.enc          # Änderungen seit Sonntag
+```
+
+---
+
+### **📦 Backup-Inhalte**
+
+**Was wird gesichert?**
+
+```
+rechnungspilot-backup/
+├── database/
+│   └── rechnungspilot.db              # SQLite-Datenbank (Hauptdaten)
+│
+├── documents/
+│   ├── belege/                        # Eingangsrechnungen (PDFs)
+│   ├── rechnungen/                    # Ausgangsrechnungen (PDFs)
+│   ├── agb/                           # AGB-Versionen
+│   └── widerrufsbelehrung/            # Widerrufsbelehrungen
+│
+├── imports/
+│   ├── 2025/12/09/                    # Import-Archive (Bank-CSV, etc.)
+│   │   ├── sparkasse_20251209.csv
+│   │   └── paypal_20251209.csv
+│   └── ...
+│
+├── config/
+│   ├── settings.json                  # Benutzer-Einstellungen
+│   ├── templates/                     # Bank-CSV-Templates (User)
+│   └── firma.json                     # Firmenstammdaten
+│
+└── metadata.json                      # Backup-Metadaten (Timestamp, Version, Hash)
+```
+
+**Größenabschätzung:**
+```
+Startgröße (frische Installation):   ~50 MB
+Nach 1 Jahr (100 Rechnungen/Monat):  ~2 GB
+  - Datenbank: 100 MB
+  - Belege (PDFs): 1,5 GB (avg. 150 KB/PDF × 1200 PDFs)
+  - Imports: 200 MB
+  - Config: 10 MB
+```
+
+---
+
+### **🔐 Verschlüsselung**
+
+**Optional, aber empfohlen** (besonders bei Netzwerk-Backups!)
+
+**Algorithmus:** AES-256 (industry standard)
+
+**Implementierung:**
+```python
+import os
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+
+def encrypt_backup(backup_file: str, password: str) -> str:
+    """
+    Verschlüsselt Backup-Datei mit AES-256.
+    """
+    # 1. Passwort → Schlüssel (PBKDF2)
+    salt = os.urandom(16)
+    kdf = PBKDF2(
+        algorithm=hashes.SHA256(),
+        length=32,  # 256 bit
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    key = kdf.derive(password.encode())
+
+    # 2. Initialisierungsvektor (IV)
+    iv = os.urandom(16)
+
+    # 3. Datei verschlüsseln
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+
+    with open(backup_file, 'rb') as f_in:
+        plaintext = f_in.read()
+
+    # Padding (AES benötigt Vielfaches von 16 Bytes)
+    padding_length = 16 - (len(plaintext) % 16)
+    plaintext += bytes([padding_length]) * padding_length
+
+    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+
+    # 4. Salt + IV + Ciphertext speichern
+    encrypted_file = backup_file + '.enc'
+    with open(encrypted_file, 'wb') as f_out:
+        f_out.write(salt)       # 16 Bytes
+        f_out.write(iv)         # 16 Bytes
+        f_out.write(ciphertext) # Rest
+
+    # Original-Datei löschen (sicher)
+    os.remove(backup_file)
+
+    return encrypted_file
+```
+
+**Passwort-Verwaltung:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🔐 Backup-Verschlüsselung                               │
+├─────────────────────────────────────────────────────────┤
+│ ☑ Backups verschlüsseln (AES-256)                      │
+│                                                         │
+│ Verschlüsselungs-Passwort:                              │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ [●●●●●●●●●●●●●●●●●●●●]                          │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ Passwort wiederholen:                                   │
+│ ┌─────────────────────────────────────────────────┐     │
+│ │ [●●●●●●●●●●●●●●●●●●●●]                          │     │
+│ └─────────────────────────────────────────────────┘     │
+│                                                         │
+│ ⚠️ WICHTIG: Passwort gut aufbewahren!                  │
+│    Ohne Passwort ist das Backup nicht wiederherstellbar│
+│                                                         │
+│ ☑ Passwort in System-Keychain speichern (empfohlen)    │
+│   (Linux: gnome-keyring, macOS: Keychain,              │
+│    Windows: Credential Manager)                         │
+│                                                         │
+│ [Abbrechen]                              [Speichern]    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### **⏰ Backup-Zeitplan**
+
+**Automatische Backups:**
+
+```python
+# Beispiel: Backup-Schedule
+backup_schedule = {
+    'vollbackup': {
+        'frequenz': 'wöchentlich',
+        'wochentag': 'Sonntag',
+        'uhrzeit': '02:00',
+        'aufbewahrung': 4  # 4 Wochen
+    },
+    'inkrementell': {
+        'frequenz': 'täglich',
+        'uhrzeit': '02:00',
+        'aufbewahrung': 30  # 30 Tage
+    },
+    'vor_update': {
+        'trigger': 'auto',  # Automatisch vor jedem Update
+        'typ': 'vollbackup',
+        'aufbewahrung': 'permanent'  # Nicht automatisch löschen
+    }
+}
+```
+
+**UI:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ ⏰ Backup-Zeitplan                                      │
+├─────────────────────────────────────────────────────────┤
+│ Vollbackup:                                             │
+│ ☑ Automatisch                                           │
+│   Wöchentlich, jeden [Sonntag ▼] um [02:00]            │
+│   Aufbewahrung: [4] Wochen                              │
+│                                                         │
+│ Inkrementelles Backup:                                  │
+│ ☑ Automatisch                                           │
+│   Täglich um [02:00]                                    │
+│   Aufbewahrung: [30] Tage                               │
+│                                                         │
+│ Sonder-Backups:                                         │
+│ ☑ Vor Software-Updates (automatisch)                   │
+│ ☑ Vor DATEV-Export (optional)                          │
+│ ☑ Vor Jahresabschluss (Erinnerung)                     │
+│                                                         │
+│ Nächstes geplantes Backup:                             │
+│ 📅 Sonntag, 15.12.2025 um 02:00 Uhr (Vollbackup)       │
+│                                                         │
+│ [Backup jetzt durchführen]              [Speichern]    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### **🔄 Restore (Wiederherstellung)**
+
+#### **1. Vollständige Wiederherstellung**
+
+**Szenario:** Festplatte defekt, Neuinstallation nötig
+
+**Workflow:**
+```
+1. RechnungsPilot neu installieren
+2. Backup auswählen:
+   ┌─────────────────────────────────────────────────────────┐
+   │ 📥 Backup wiederherstellen                              │
+   ├─────────────────────────────────────────────────────────┤
+   │ Backup-Quelle:                                          │
+   │ ● Externe Festplatte: /media/usb-backup                │
+   │ ○ Netzlaufwerk: smb://nas.local/backups                │
+   │ ○ Anderer Pfad: [Durchsuchen...]                       │
+   │                                                         │
+   │ Verfügbare Backups:                                     │
+   │ ┌─────────────────────────────────────────────────┐     │
+   │ │ ● 15.12.2025 02:00 - Vollbackup (2,3 GB)       │     │
+   │ │ ○ 14.12.2025 02:00 - Inkrementell (15 MB)      │     │
+   │ │ ○ 13.12.2025 02:00 - Inkrementell (22 MB)      │     │
+   │ │ ○ 08.12.2025 02:00 - Vollbackup (2,2 GB)       │     │
+   │ └─────────────────────────────────────────────────┘     │
+   │                                                         │
+   │ ⚠️ Warnung: Alle aktuellen Daten werden überschrieben! │
+   │                                                         │
+   │ [Abbrechen]                   [Wiederherstellen →]      │
+   └─────────────────────────────────────────────────────────┘
+
+3. Bei verschlüsseltem Backup: Passwort eingeben
+4. Wiederherstellung (Fortschrittsbalken)
+5. Fertig! RechnungsPilot neu starten
+```
+
+#### **2. Einzelne Datei/Beleg wiederherstellen**
+
+**Szenario:** Versehentlich gelöschtes PDF
+
+**Workflow:**
+```
+1. Backup durchsuchen:
+   ┌─────────────────────────────────────────────────────────┐
+   │ 🔍 Backup durchsuchen                                   │
+   ├─────────────────────────────────────────────────────────┤
+   │ Suche nach:                                             │
+   │ [Rechnung RE-2025-001]                    [Suchen]      │
+   │                                                         │
+   │ Gefunden in Backup vom 08.12.2025:                      │
+   │ ┌─────────────────────────────────────────────────┐     │
+   │ │ ☑ RE-2025-001.pdf (145 KB)                      │     │
+   │ │ ☑ RE-2025-001.xrechnung.xml (12 KB)            │     │
+   │ └─────────────────────────────────────────────────┘     │
+   │                                                         │
+   │ [Abbrechen]          [Exportieren...]  [Wiederherstellen│
+   └─────────────────────────────────────────────────────────┘
+
+2. Datei wiederherstellen oder an anderem Ort speichern
+```
+
+#### **3. Point-in-Time Recovery**
+
+**Szenario:** "Wie sah meine Datenbank am 01.12. aus?"
+
+**Workflow:**
+```
+1. Backup vom gewünschten Datum auswählen
+2. In temporäres Verzeichnis entpacken
+3. Datenbank im Read-Only-Modus öffnen
+4. Daten prüfen/exportieren
+5. Optional: Bestimmte Datensätze in aktuelle DB kopieren
+```
+
+---
+
+### **🗄️ Datenbank-Schema für Backups**
+
+```sql
+CREATE TABLE backups (
+    id INTEGER PRIMARY KEY,
+    typ TEXT NOT NULL, -- 'full', 'incremental', 'differential'
+    erstellt_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ziel TEXT NOT NULL, -- '/media/usb-backup', 'smb://nas.local/backups'
+    ziel_typ TEXT NOT NULL, -- 'lokal', 'usb', 'netzwerk'
+
+    -- Backup-Datei
+    dateiname TEXT NOT NULL, -- 'full_2025-12-09_020000.tar.gz.enc'
+    dateipfad TEXT NOT NULL, -- Vollständiger Pfad
+    dateigroesse INTEGER, -- Bytes
+    hash_sha256 TEXT, -- Integritätsprüfung
+
+    -- Verschlüsselung
+    verschluesselt BOOLEAN DEFAULT 0,
+    verschluesselungs_algorithmus TEXT, -- 'AES-256-CBC'
+
+    -- Metadaten
+    software_version TEXT, -- RechnungsPilot-Version
+    datenbank_version INTEGER, -- Schema-Version
+    anzahl_rechnungen INTEGER,
+    anzahl_belege INTEGER,
+    anzahl_kunden INTEGER,
+
+    -- Status
+    status TEXT DEFAULT 'erfolgreich', -- 'erfolgreich', 'fehler', 'abgebrochen'
+    fehlermeldung TEXT,
+    dauer_sekunden INTEGER,
+
+    -- Aufbewahrung
+    aufbewahren_bis DATE, -- NULL = permanent
+    automatisch_geloescht BOOLEAN DEFAULT 0,
+
+    -- Abhängigkeiten (für inkrementelle Backups)
+    basiert_auf_backup_id INTEGER, -- NULL bei Vollbackup
+
+    CHECK (typ IN ('full', 'incremental', 'differential')),
+    CHECK (ziel_typ IN ('lokal', 'usb', 'netzwerk', 'nas')),
+    FOREIGN KEY (basiert_auf_backup_id) REFERENCES backups(id)
+);
+
+CREATE INDEX idx_backups_typ ON backups(typ);
+CREATE INDEX idx_backups_datum ON backups(erstellt_am);
+CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
+```
+
+---
+
+### **📋 MVP-Umfang für Kategorie 10.1 (Backup)**
+
+#### **Phase 1 (v1.0 - MVP):**
+
+**Backup-Ziele:**
+- ✅ Lokales Verzeichnis
+- ✅ Externe Festplatte / USB
+- ✅ Netzlaufwerk (SMB/CIFS)
+- ✅ Mehrere Ziele parallel (bis zu 3)
+
+**Backup-Strategien:**
+- ✅ Vollbackup
+- ⏸️ Inkrementelles Backup - optional (v1.1, wenn Zeit)
+- ❌ Differentielles Backup - v1.1
+
+**Features:**
+- ✅ Manuelles Backup (On-Demand)
+- ✅ Automatisches Backup (Zeitplan)
+- ✅ Verschlüsselung optional (AES-256)
+- ✅ Passwort in System-Keychain
+- ✅ Backup vor Software-Update (automatisch)
+- ✅ Vollständige Wiederherstellung
+- ⏸️ Einzeldatei-Wiederherstellung - optional (v1.1)
+
+**Cloud-Backup:**
+- ❌ **NICHT in v1.0** - zurückgestellt auf v2.0
+
+#### **Phase 2 (v1.1):**
+- Inkrementelles/Differentielles Backup
+- Einzeldatei-Wiederherstellung (Backup-Browser)
+- Backup-Verifizierung (Hash-Check)
+- Backup-Rotation automatisch
+- Backup-Benachrichtigungen (E-Mail bei Fehler)
+
+#### **Phase 3 (v2.0):**
+- Cloud-Backup (S3-kompatibel: AWS, Backblaze B2, Wasabi)
+- WebDAV (Nextcloud, ownCloud)
+- SFTP/SCP
+- Backup-Verschlüsselung mit GPG (zusätzlich zu AES)
+- Deduplizierung (nur geänderte Blöcke speichern)
+
+---
+
+### **✅ Status: Kategorie 10.1 - Backup vollständig geklärt**
+
+**Wichtigste Entscheidungen:**
+
+1. ✅ **Lokale Backups für v1.0** (keine Cloud-Abhängigkeit)
+2. ✅ **Mehrere Backup-Ziele parallel** (3-2-1-Regel)
+3. ✅ **Vollbackup + optional Inkrementell** (v1.0/v1.1)
+4. ✅ **Verschlüsselung optional** (AES-256 mit PBKDF2)
+5. ✅ **Automatischer Backup-Zeitplan** (täglich/wöchentlich)
+6. ✅ **Backup vor Update** (Pflicht, automatisch)
+7. ⏸️ **Cloud-Backup** → v2.0
+
+**Backup-Ziele:**
+- Lokales Verzeichnis
+- Externe Festplatte
+- NAS/Netzlaufwerk (SMB/CIFS)
+- Lokale Freigaben (anderer PC)
+
+**GoBD-Konformität:**
+- SHA256-Hash für Integrität
+- Unveränderbare Backups
+- Vollständige Aufzeichnung (Metadaten)
+
+---
+
 ### **Noch zu klären (siehe fragen.md):**
 
 - ✅ ~~Kategorie 6: UStVA~~ - **Geklärt** (Hybrid-Ansatz, MVP nur Zahlen)
 - ✅ ~~Kategorie 7: EÜR~~ - **Geklärt** (Hybrid-Ansatz, AfA-Verwaltung, Zufluss-/Abfluss-Prinzip)
 - ✅ ~~Kategorie 8: Stammdaten-Erfassung~~ - **Geklärt** (User/Firma, Kategorien, EU-Länder, Bankkonten, Kontenrahmen, Geschäftsjahr, Kundenstamm mit Hybrid-Lösung, Lieferantenstamm, Produktstamm v2.0)
 - ✅ ~~Kategorie 9: Import-Schnittstellen~~ - **Geklärt** (Typ 1: Stammdaten editierbar, Typ 2a: Rohdaten unveränderbar, Typ 2b: Geschäftsvorfälle unveränderbar; Fakturama/helloCash in v1.1, AGENDA in v1.1/v2.0)
-- Kategorie 10: Backup & Update
+- ✅ ~~Kategorie 10.1: Backup~~ - **Geklärt** (Lokale Backups: Verzeichnis/USB/NAS, mehrere Ziele parallel, 3-2-1-Regel, Vollbackup/Inkrementell, AES-256-Verschlüsselung, automatischer Zeitplan, Cloud-Backup v2.0)
+- Kategorie 10.2: Update (noch zu klären)
 - Kategorie 11: Steuersätze
 - Kategorie 12: Hilfe-System
 - Kategorie 13: Scope & Priorisierung
