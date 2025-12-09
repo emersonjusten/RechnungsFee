@@ -50,6 +50,79 @@ RechnungsPilot ist eine plattformunabhängige, Open-Source-Lösung für:
 
 ---
 
+## **🎨 UI/UX-Richtlinien & Tonalität**
+
+### **Ansprache: "Du" statt "Sie"**
+
+**Entscheidung:** RechnungsPilot verwendet durchgängig die **Du-Ansprache**.
+
+**Begründung:**
+- 💡 **Finanzen sind trocken** - Persönliche Ansprache macht es zugänglicher
+- 👥 **Zielgruppe:** Freiberufler, Selbstständige, Kleinunternehmer - meist jüngere Generation
+- 🤝 **Open Source Community** - "Du" ist Standard
+- 🚀 **Moderne Software** - "Sie" wirkt altbacken und steif
+- 💬 **Lockerer Ton** - Reduziert Hemmschwelle bei komplexen Steuerformularen
+
+**Beispiele:**
+
+| ❌ "Sie"-Formulierung | ✅ "Du"-Formulierung |
+|----------------------|---------------------|
+| "Bitte warten Sie..." | "Bitte warte..." |
+| "Ihre Daten werden gespeichert" | "Deine Daten werden gespeichert" |
+| "Wählen Sie ein Backup-Ziel" | "Wähle ein Backup-Ziel" |
+| "Möchten Sie fortfahren?" | "Möchtest du fortfahren?" |
+| "Ihre Rechnung wurde erstellt" | "Deine Rechnung wurde erstellt" |
+| "Sie haben 3 neue Belege" | "Du hast 3 neue Belege" |
+| "Bitte überprüfen Sie..." | "Bitte überprüfe..." |
+| "Ihre Einstellungen wurden gespeichert" | "Deine Einstellungen wurden gespeichert" |
+
+**Anwendungsbereiche:**
+- ✅ Alle UI-Texte (Buttons, Menüs, Dialoge)
+- ✅ Fehlermeldungen
+- ✅ Hilfetexte und Tooltips
+- ✅ Bestätigungsdialoge
+- ✅ Onboarding-Screens
+- ✅ Dokumentation (User-Handbuch)
+- ✅ Changelog/Release Notes (soweit user-facing)
+
+**Ausnahmen (formell bleiben):**
+- ❌ Offizielle Dokumente (UStVA, EÜR, DATEV-Export) - hier gelten gesetzliche Vorgaben
+- ❌ Externe API-Dokumentation (für Entwickler)
+- ❌ Geschäftsbriefe/Rechnungen (sofern vom User erstellt - hier User-Einstellung)
+
+### **Tonalität-Prinzipien**
+
+1. **Freundlich, aber kompetent**
+   - ✅ "Das Backup läuft. Dauert nur noch 30 Sekunden!"
+   - ❌ "LOL, warte mal kurz! 😂"
+
+2. **Klar und verständlich**
+   - ✅ "Verschlüsselung schützt deine Daten bei Diebstahl"
+   - ❌ "Encryption is mandatory pursuant to GDPR Art. 32"
+
+3. **Hilfsbereit, nicht bevormundend**
+   - ✅ "Tipp: Verschlüsselung ist für Kundendaten empfohlen"
+   - ❌ "Du MUSST Verschlüsselung aktivieren!"
+
+4. **Positiv formulieren**
+   - ✅ "Backup erfolgreich! Deine Daten sind sicher."
+   - ❌ "Fehler vermieden. Keine Probleme aufgetreten."
+
+5. **Fehler menschlich kommunizieren**
+   - ✅ "Ups! Die Verbindung zum NAS ist fehlgeschlagen. Prüfe bitte die Zugangsdaten."
+   - ❌ "ERROR: SMB connection failed (errno 13)"
+
+### **Emoji-Verwendung**
+
+**Moderat einsetzen** - nur zur Orientierung, nicht übertreiben:
+
+- ✅ **Icons in Dialogen:** 💾 Backup, ⚠️ Warnung, ✅ Erfolg, ❌ Fehler, ℹ️ Info
+- ✅ **Kategorien/Menüs:** 📊 Berichte, ⚙️ Einstellungen, 🔐 Sicherheit
+- ❌ **Nicht in Fließtext:** "Du hast 3 neue 📄 Belege 🎉🎉🎉"
+- ❌ **Nicht in Fehlermeldungen:** "❌😱 Oh nein! ❌"
+
+---
+
 ## **Entscheidungen & Anforderungen**
 
 ### **Kassenbuch (Kategorie 1) - ✅ GEKLÄRT**
@@ -1263,7 +1336,7 @@ CREATE TABLE stammdaten_unternehmen (
 
 **Validierung:**
 - Beim Klick auf "Aktivieren": Prüfen ob Beraternr. & Mandantennr. vorhanden
-- Falls fehlend: Fehlermeldung "Bitte tragen Sie zuerst die DATEV-Daten ein"
+- Falls fehlend: Fehlermeldung "Bitte trage zuerst die DATEV-Daten ein"
 
 ---
 
@@ -1697,7 +1770,7 @@ Match: Sparkasse/LZO MT940 (90% Übereinstimmung)
 ```
 1. User: CSV importieren
    ↓
-2. System: "❌ Unbekanntes Format - Möchten Sie ein Template erstellen?"
+2. System: "❌ Unbekanntes Format - Möchtest du ein Template erstellen?"
    ↓
 3. Template-Editor öffnen:
 
@@ -3237,8 +3310,8 @@ def validate_eu_invoice(rechnung):
 │ • USt-IdNr. des Kunden fehlt            │
 │ • USt-IdNr. nicht validiert             │
 │                                         │
-│ Bitte ergänzen Sie die USt-IdNr. und   │
-│ validieren Sie diese über BZSt.        │
+│ Bitte ergänze die USt-IdNr. und        │
+│ validiere diese über BZSt.             │
 │                                         │
 │ [ Stammdaten öffnen ]  [ Abbrechen ]   │
 └─────────────────────────────────────────┘
@@ -3360,8 +3433,8 @@ def setup_wizard_step1_validate(data):
 │ Schritt 2/5: EU-Handel                 │
 ├─────────────────────────────────────────┤
 │                                         │
-│ Sie haben EU-Handel aktiviert.         │
-│ Bitte lesen Sie folgende Hinweise:     │
+│ Du hast EU-Handel aktiviert.           │
+│ Bitte lies folgende Hinweise:          │
 │                                         │
 │ ✅ Voraussetzungen:                     │
 │ • Gültige USt-IdNr. (DE123456789) ✅    │
@@ -3373,7 +3446,7 @@ def setup_wizard_step1_validate(data):
 │ • Zusammenfassende Meldung (ZM)        │
 │   monatlich/quartalsweise an BZSt      │
 │                                         │
-│ 📋 In welchen Ländern handeln Sie?     │
+│ 📋 In welchen Ländern handelst du?     │
 │ (optional - nur zur Vorbereitung)      │
 │                                         │
 │ ☑ Belgien                               │
@@ -3483,9 +3556,9 @@ System: STOP!
 │ ⚠️ EU-Handel nicht möglich               │
 ├─────────────────────────────────────────┤
 │ Für Geschäfte mit EU-Ländern benötigen │
-│ Sie eine gültige deutsche USt-IdNr.    │
+│ du eine gültige deutsche USt-IdNr.     │
 │                                         │
-│ Sie sind aktuell als Kleinunternehmer  │
+│ Du bist aktuell als Kleinunternehmer   │
 │ (§19 UStG) registriert.                │
 │                                         │
 │ Optionen:                               │
@@ -3529,7 +3602,7 @@ System: STOP!
 **Hilfe-Seite: "EU-Handel - Checkliste"**
 
 ```markdown
-# EU-Handel: Was Sie benötigen
+# EU-Handel: Was du benötigst
 
 ## ✅ Voraussetzungen
 
@@ -3919,7 +3992,7 @@ def validate_datev_export(zeitraum):
 │ ───────────────────────────────────────────────── │
 │                                                   │
 │ Empfehlung:                                      │
-│ Beheben Sie die Warnungen vor UStVA-Abgabe,     │
+│ Behebe die Warnungen vor UStVA-Abgabe,          │
 │ um Probleme bei Betriebsprüfung zu vermeiden.   │
 │                                                   │
 │ [ Alle korrigieren ]  [ Report drucken ]         │
@@ -4047,7 +4120,7 @@ def export_ustva_pdf(ustva_data):
 **Verhalten:**
 - RechnungsPilot erkennt: User ist Kleinunternehmer
 - UStVA-Menü wird ausgeblendet/deaktiviert
-- Hinweis: "Als Kleinunternehmer (§19 UStG) müssen Sie keine UStVA abgeben"
+- Hinweis: "Als Kleinunternehmer (§19 UStG) musst du keine UStVA abgeben"
 
 **Optional:**
 - Umsatzgrenze-Tracker:
@@ -4103,7 +4176,7 @@ Ist-Versteuerung (RICHTIG bei ALG II):
 
 1. **Beim Ersteinrichtung:**
    ```
-   Beziehen Sie Transferleistungen?
+   Beziehst du Transferleistungen?
    (ALG II, Bürgergeld, Grundsicherung)
 
    ○ Nein
@@ -6646,7 +6719,7 @@ class User:
 │                                                 │
 │ BERUFSRECHTLICHE ANGABEN                        │
 │                                                 │
-│ Sind Sie Mitglied einer Kammer/eines           │
+│ Bist du Mitglied einer Kammer/eines            │
 │ Berufsverbandes?                                │
 │                                                 │
 │ ○ Nein                                          │
@@ -7132,7 +7205,7 @@ CREATE TABLE bankkonten (
 │ Kontenrahmen auswählen                  │
 ├─────────────────────────────────────────┤
 │                                         │
-│ Welchen Kontenrahmen nutzen Sie?       │
+│ Welchen Kontenrahmen nutzt du?         │
 │                                         │
 │ ● SKR03 (Prozessgliederung)            │
 │   Empfohlen für:                        │
@@ -13367,7 +13440,7 @@ def encrypt_backup(backup_file: str, password: str) -> str:
 │ ┌─────────────────────────────────────────────────┐     │
 │ │ Unverschlüsselte Backups sind ein Risiko:      │     │
 │ │                                                 │     │
-│ │ Bei Diebstahl/Verlust MÜSSEN Sie:              │     │
+│ │ Bei Diebstahl/Verlust musst du:                │     │
 │ │ • Datenschutzbehörde informieren (Art. 33)     │     │
 │ │ • ALLE Kunden benachrichtigen (Art. 34)        │     │
 │ │ • Mit Bußgeldern rechnen (bis 20 Mio. €)      │     │
@@ -13508,7 +13581,7 @@ WHERE geaendert_am > (
 ┌─────────────────────────────────────────────────────────┐
 │ 💾 Backup vor dem Beenden                               │
 ├─────────────────────────────────────────────────────────┤
-│ Es wurden Änderungen seit dem letzten Backup erkannt:  │
+│ Seit dem letzten Backup hast du einiges geändert:      │
 │                                                         │
 │ • 3 neue Rechnungen                                     │
 │ • 2 neue Belege                                         │
@@ -13536,7 +13609,7 @@ WHERE geaendert_am > (
 │                                                         │
 │ Verschlüssele Daten...                                  │
 │                                                         │
-│ Bitte warten Sie, RechnungsPilot wird nach dem         │
+│ Bitte warte, RechnungsPilot wird nach dem              │
 │ Backup automatisch geschlossen.                        │
 │                                                         │
 │ [Im Hintergrund beenden] ❌ Nicht empfohlen             │
