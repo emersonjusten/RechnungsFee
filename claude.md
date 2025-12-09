@@ -13433,10 +13433,278 @@ backup_schedule = {
 │ ☑ Vor DATEV-Export (optional)                          │
 │ ☑ Vor Jahresabschluss (Erinnerung)                     │
 │                                                         │
+│ ⭐ Backup beim Beenden:                                 │
+│ ☑ Automatisches Backup beim Beenden (wenn Änderungen)  │
+│   (Greift nur, wenn KEIN automatischer Zeitplan aktiv) │
+│                                                         │
 │ Nächstes geplantes Backup:                             │
 │ 📅 Sonntag, 15.12.2025 um 02:00 Uhr (Vollbackup)       │
 │                                                         │
 │ [Backup jetzt durchführen]              [Speichern]    │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### **💾 Backup beim Beenden (Exit-Backup)**
+
+**Problem:** User vergessen oft manuelle Backups!
+
+**Lösung:** Automatisches Backup beim Beenden der Anwendung, wenn:
+1. ✅ **KEINE** automatische Zeitplanung aktiv ist (weder täglich noch wöchentlich)
+2. ✅ Es **Änderungen** seit dem letzten Backup gab
+3. ✅ Die Option aktiviert ist (Standard: AN)
+
+**Vorteil:**
+- Backups werden niemals vergessen
+- Beenden ist ein natürlicher Zeitpunkt (Arbeitstag abgeschlossen)
+- Nur wenn wirklich etwas geändert wurde
+
+#### **Change-Tracking (Änderungserkennung)**
+
+**RechnungsPilot trackt automatisch alle Änderungen:**
+
+```sql
+-- Change Tracking Tabelle
+CREATE TABLE change_log (
+    id INTEGER PRIMARY KEY,
+    tabelle TEXT NOT NULL,         -- 'rechnungen', 'belege', 'kunden', etc.
+    aktion TEXT NOT NULL,           -- 'insert', 'update', 'delete'
+    datensatz_id INTEGER,
+    geaendert_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trigger bei jeder Änderung (Beispiel: Rechnungen)
+CREATE TRIGGER rechnung_changed
+AFTER INSERT ON rechnungen
+BEGIN
+    INSERT INTO change_log (tabelle, aktion, datensatz_id)
+    VALUES ('rechnungen', 'insert', NEW.id);
+END;
+
+CREATE TRIGGER rechnung_updated
+AFTER UPDATE ON rechnungen
+BEGIN
+    INSERT INTO change_log (tabelle, aktion, datensatz_id)
+    VALUES ('rechnungen', 'update', NEW.id);
+END;
+
+-- Funktion: Hat sich was geändert?
+CREATE VIEW hat_aenderungen AS
+SELECT
+    COUNT(*) AS anzahl_aenderungen,
+    MAX(geaendert_am) AS letzte_aenderung
+FROM change_log
+WHERE geaendert_am > (
+    SELECT MAX(erstellt_am) FROM backups WHERE status = 'erfolgreich'
+);
+```
+
+#### **UI: Beenden-Dialog mit Backup**
+
+**Fall 1: Änderungen vorhanden, Exit-Backup aktiv**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 💾 Backup vor dem Beenden                               │
+├─────────────────────────────────────────────────────────┤
+│ Es wurden Änderungen seit dem letzten Backup erkannt:  │
+│                                                         │
+│ • 3 neue Rechnungen                                     │
+│ • 2 neue Belege                                         │
+│ • 1 Kunde aktualisiert                                  │
+│                                                         │
+│ Letzte Änderung: Heute, 17:42 Uhr                      │
+│ Letztes Backup:  Gestern, 02:00 Uhr                    │
+│                                                         │
+│ ☑ Backup jetzt durchführen (empfohlen)                 │
+│                                                         │
+│ Backup-Ziel: Netzlaufwerk (NAS)                        │
+│ Geschätzte Dauer: ~30 Sekunden                         │
+│                                                         │
+│ [Ohne Backup beenden]          [Backup & Beenden ✅]    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Backup läuft:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 💾 Backup wird erstellt...                              │
+├─────────────────────────────────────────────────────────┤
+│ ████████████████████░░░░░░ 75%                          │
+│                                                         │
+│ Verschlüssele Daten...                                  │
+│                                                         │
+│ Bitte warten Sie, RechnungsPilot wird nach dem         │
+│ Backup automatisch geschlossen.                        │
+│                                                         │
+│ [Im Hintergrund beenden] ❌ Nicht empfohlen             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Backup erfolgreich:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ ✅ Backup erfolgreich!                                  │
+├─────────────────────────────────────────────────────────┤
+│ Backup wurde erfolgreich erstellt:                     │
+│                                                         │
+│ 📁 Datei: full_2025-12-09_174530.tar.gz.enc            │
+│ 📊 Größe: 2,3 MB                                        │
+│ 🔐 Verschlüsselt: Ja (AES-256)                         │
+│ 📍 Ziel: smb://nas.local/backups/rechnungspilot        │
+│                                                         │
+│ RechnungsPilot wird jetzt geschlossen.                 │
+│                                                         │
+│ [Schließen ✓]                                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Fall 2: KEINE Änderungen → Kein Backup nötig**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 👋 Auf Wiedersehen!                                     │
+├─────────────────────────────────────────────────────────┤
+│ Seit dem letzten Backup gab es keine Änderungen.       │
+│                                                         │
+│ Letztes Backup:  Heute, 02:00 Uhr                      │
+│                                                         │
+│ [Beenden ✓]                                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Fall 3: Automatischer Zeitplan aktiv → Exit-Backup deaktiviert**
+
+```
+Beenden ohne Rückfrage, da:
+- Automatisches Backup ist konfiguriert (täglich 02:00 Uhr)
+- Exit-Backup daher nicht nötig
+```
+
+#### **Logik-Flussdiagramm**
+
+```
+User klickt "Beenden"
+    │
+    ├─→ Automatischer Zeitplan aktiv?
+    │   ├─→ JA: Sofort beenden (keine Rückfrage)
+    │   └─→ NEIN: Weiter
+    │
+    ├─→ Exit-Backup aktiviert?
+    │   ├─→ NEIN: Sofort beenden
+    │   └─→ JA: Weiter
+    │
+    ├─→ Änderungen seit letztem Backup?
+    │   ├─→ NEIN: Beenden (kurze Info: "Keine Änderungen")
+    │   └─→ JA: Backup-Dialog anzeigen
+    │
+    └─→ Backup-Dialog
+        ├─→ User wählt "Backup & Beenden"
+        │   ├─→ Backup durchführen
+        │   ├─→ Erfolgsmeldung
+        │   └─→ Beenden
+        │
+        └─→ User wählt "Ohne Backup beenden"
+            └─→ Sofort beenden (Risiko auf eigene Verantwortung)
+```
+
+#### **Implementierung**
+
+```python
+def on_exit():
+    """
+    Wird beim Beenden der Anwendung aufgerufen.
+    """
+    # 1. Prüfe: Automatischer Zeitplan aktiv?
+    zeitplan_aktiv = db.execute("""
+        SELECT COUNT(*) FROM backup_ziele
+        WHERE zeitplan_aktiv = 1
+    """).fetchone()[0] > 0
+
+    if zeitplan_aktiv:
+        # Automatisches Backup läuft → Exit-Backup nicht nötig
+        sys.exit(0)
+
+    # 2. Prüfe: Exit-Backup aktiviert?
+    exit_backup_aktiv = db.execute("""
+        SELECT backup_beim_beenden FROM einstellungen
+    """).fetchone()[0]
+
+    if not exit_backup_aktiv:
+        # Exit-Backup deaktiviert → Beenden
+        sys.exit(0)
+
+    # 3. Prüfe: Änderungen seit letztem Backup?
+    letztes_backup = db.execute("""
+        SELECT MAX(erstellt_am) FROM backups
+        WHERE status = 'erfolgreich'
+    """).fetchone()[0]
+
+    aenderungen = db.execute("""
+        SELECT COUNT(*) FROM change_log
+        WHERE geaendert_am > ?
+    """, (letztes_backup,)).fetchone()[0]
+
+    if aenderungen == 0:
+        # Keine Änderungen → Beenden (mit kurzer Info)
+        show_info_dialog("Keine Änderungen seit letztem Backup.")
+        sys.exit(0)
+
+    # 4. Änderungen vorhanden → Backup-Dialog anzeigen
+    dialog = ExitBackupDialog(aenderungen_details={
+        'anzahl_rechnungen': count_changes('rechnungen'),
+        'anzahl_belege': count_changes('belege'),
+        'anzahl_kunden': count_changes('kunden'),
+        'letzte_aenderung': get_last_change_time(),
+        'letztes_backup': letztes_backup
+    })
+
+    if dialog.show() == 'BACKUP':
+        # User will Backup
+        if perform_backup():
+            show_success_dialog("Backup erfolgreich!")
+            sys.exit(0)
+        else:
+            show_error_dialog("Backup fehlgeschlagen!")
+            # User entscheiden lassen: trotzdem beenden?
+            if show_question("Trotzdem beenden?"):
+                sys.exit(0)
+    else:
+        # User will ohne Backup beenden
+        sys.exit(0)
+```
+
+#### **Einstellungen: Exit-Backup konfigurieren**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ ⚙️ Einstellungen → Backup                               │
+├─────────────────────────────────────────────────────────┤
+│ 💾 Backup beim Beenden                                  │
+│                                                         │
+│ ☑ Automatisches Backup beim Beenden (wenn Änderungen)  │
+│                                                         │
+│ ℹ️ Diese Option ist nur aktiv, wenn KEIN automatischer │
+│    Zeitplan konfiguriert ist.                          │
+│                                                         │
+│ Vorteile:                                              │
+│ • Sie vergessen nie ein Backup                         │
+│ • Backup nur bei echten Änderungen                     │
+│ • Beenden ist natürlicher Zeitpunkt                    │
+│                                                         │
+│ Nachteile:                                             │
+│ • Beenden dauert etwas länger (~30 Sekunden)           │
+│ • Bei großen Datenmengen kann es nerven                │
+│                                                         │
+│ Empfehlung:                                            │
+│ Aktivieren Sie entweder:                               │
+│ • Automatischen Zeitplan (täglich/wöchentlich) ODER    │
+│ • Exit-Backup                                          │
+│                                                         │
+│ [Speichern]                                            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -13521,6 +13789,7 @@ backup_schedule = {
 ### **🗄️ Datenbank-Schema für Backups**
 
 ```sql
+-- Backup-Historie
 CREATE TABLE backups (
     id INTEGER PRIMARY KEY,
     typ TEXT NOT NULL, -- 'full', 'incremental', 'differential'
@@ -13557,6 +13826,9 @@ CREATE TABLE backups (
     -- Abhängigkeiten (für inkrementelle Backups)
     basiert_auf_backup_id INTEGER, -- NULL bei Vollbackup
 
+    -- Exit-Backup
+    exit_backup BOOLEAN DEFAULT 0, -- Wurde beim Beenden erstellt?
+
     CHECK (typ IN ('full', 'incremental', 'differential')),
     CHECK (ziel_typ IN ('lokal', 'usb', 'netzwerk', 'nas')),
     FOREIGN KEY (basiert_auf_backup_id) REFERENCES backups(id)
@@ -13565,6 +13837,69 @@ CREATE TABLE backups (
 CREATE INDEX idx_backups_typ ON backups(typ);
 CREATE INDEX idx_backups_datum ON backups(erstellt_am);
 CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
+
+-- Backup-Ziele (mehrere möglich)
+CREATE TABLE backup_ziele (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL, -- 'Primäres NAS', 'USB-Backup', etc.
+    typ TEXT NOT NULL, -- 'lokal', 'usb', 'netzwerk', 'nas'
+    pfad TEXT NOT NULL, -- '/media/usb-backup' oder 'smb://nas.local/backups'
+
+    -- Authentifizierung (für Netzwerk)
+    benutzer TEXT,
+    passwort_keychain_id TEXT, -- Referenz zu System-Keychain
+
+    -- Zeitplan
+    zeitplan_aktiv BOOLEAN DEFAULT 0,
+    zeitplan_typ TEXT, -- 'täglich', 'wöchentlich', 'monatlich'
+    zeitplan_uhrzeit TEXT, -- '02:00'
+    zeitplan_wochentag INTEGER, -- 0=Sonntag, 1=Montag, etc. (nur bei wöchentlich)
+
+    -- Backup-Typ
+    backup_typ TEXT DEFAULT 'full', -- 'full', 'incremental', 'differential'
+
+    -- Verschlüsselung
+    verschluesselt BOOLEAN DEFAULT 1,
+    passwort_keychain_id_backup TEXT, -- Backup-Verschlüsselungspasswort
+
+    -- Status
+    aktiv BOOLEAN DEFAULT 1,
+    letztes_backup TIMESTAMP,
+    letzter_fehler TEXT,
+
+    CHECK (typ IN ('lokal', 'usb', 'netzwerk', 'nas')),
+    CHECK (backup_typ IN ('full', 'incremental', 'differential'))
+);
+
+-- Change Tracking (für Exit-Backup)
+CREATE TABLE change_log (
+    id INTEGER PRIMARY KEY,
+    tabelle TEXT NOT NULL, -- 'rechnungen', 'belege', 'kunden', etc.
+    aktion TEXT NOT NULL, -- 'insert', 'update', 'delete'
+    datensatz_id INTEGER,
+    geaendert_am TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK (aktion IN ('insert', 'update', 'delete'))
+);
+
+CREATE INDEX idx_change_log_datum ON change_log(geaendert_am);
+CREATE INDEX idx_change_log_tabelle ON change_log(tabelle);
+
+-- View: Änderungen seit letztem Backup
+CREATE VIEW hat_aenderungen AS
+SELECT
+    COUNT(*) AS anzahl_aenderungen,
+    MAX(geaendert_am) AS letzte_aenderung
+FROM change_log
+WHERE geaendert_am > (
+    SELECT COALESCE(MAX(erstellt_am), '1970-01-01')
+    FROM backups
+    WHERE status = 'erfolgreich'
+);
+
+-- Einstellungen (Erweiterung)
+-- ALTER TABLE einstellungen ADD COLUMN backup_beim_beenden BOOLEAN DEFAULT 1;
+-- (Diese Spalte wird zur bestehenden einstellungen-Tabelle hinzugefügt)
 ```
 
 ---
@@ -13587,6 +13922,8 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
 **Features:**
 - ✅ Manuelles Backup (On-Demand)
 - ✅ Automatisches Backup (Zeitplan)
+- ✅ **Exit-Backup** (Backup beim Beenden, wenn Änderungen) ⭐ NEU
+- ✅ **Change-Tracking** (automatische Änderungserkennung) ⭐ NEU
 - ✅ **Verschlüsselung STANDARD** (AES-256, opt-out mit Warnung) ⭐
 - ✅ Passwort in System-Keychain (automatisch)
 - ✅ Passwort-Generator (sichere Passwörter)
@@ -13626,8 +13963,13 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
    - Deaktivierung möglich (opt-out mit Warnung)
    - Passwort in System-Keychain
 5. ✅ **Automatischer Backup-Zeitplan** (täglich/wöchentlich)
-6. ✅ **Backup vor Update** (Pflicht, automatisch)
-7. ⏸️ **Cloud-Backup** → v2.0
+6. ✅ **Exit-Backup beim Beenden** (wenn keine Zeitplanung aktiv) ⭐ NEU
+   - Nur wenn Änderungen seit letztem Backup
+   - Change-Tracking mit automatischen Triggers
+   - Benutzerfreundliche Backup-Dialoge
+   - Kann deaktiviert werden
+7. ✅ **Backup vor Update** (Pflicht, automatisch)
+8. ⏸️ **Cloud-Backup** → v2.0
 
 **Backup-Ziele:**
 - Lokales Verzeichnis
@@ -13651,7 +13993,7 @@ CREATE INDEX idx_backups_ziel ON backups(ziel_typ);
 - ✅ ~~Kategorie 7: EÜR~~ - **Geklärt** (Hybrid-Ansatz, AfA-Verwaltung, Zufluss-/Abfluss-Prinzip)
 - ✅ ~~Kategorie 8: Stammdaten-Erfassung~~ - **Geklärt** (User/Firma, Kategorien, EU-Länder, Bankkonten, Kontenrahmen, Geschäftsjahr, Kundenstamm mit Hybrid-Lösung, Lieferantenstamm, Produktstamm v2.0)
 - ✅ ~~Kategorie 9: Import-Schnittstellen~~ - **Geklärt** (Typ 1: Stammdaten editierbar, Typ 2a: Rohdaten unveränderbar, Typ 2b: Geschäftsvorfälle unveränderbar; Fakturama/helloCash in v1.1, AGENDA in v1.1/v2.0)
-- ✅ ~~Kategorie 10.1: Backup~~ - **Geklärt** (Lokale Backups: Verzeichnis/USB/NAS, mehrere Ziele parallel, 3-2-1-Regel, Vollbackup/Inkrementell, AES-256-Verschlüsselung, automatischer Zeitplan, Cloud-Backup v2.0)
+- ✅ ~~Kategorie 10.1: Backup~~ - **Geklärt** (Lokale Backups: Verzeichnis/USB/NAS, mehrere Ziele parallel, 3-2-1-Regel, Vollbackup/Inkrementell, AES-256-Verschlüsselung, automatischer Zeitplan, **Exit-Backup beim Beenden** ⭐, Change-Tracking, Cloud-Backup v2.0)
 - Kategorie 10.2: Update (noch zu klären)
 - Kategorie 11: Steuersätze
 - Kategorie 12: Hilfe-System
