@@ -12251,13 +12251,338 @@ CREATE INDEX idx_import_stammdaten_datum ON import_stammdaten(importiert_am);
 - ✅ **Zeitstempel** und Versionierung
 - ✅ **Originaldatei archivieren** (Hash für Nachweis)
 
+**⚠️ Wichtige Unterscheidung: Typ 2a vs. Typ 2b**
+
+---
+
+#### **Typ 2a: Import Rohdaten (Transaktionen)**
+
+**Charakteristik:** Einfache Transaktionsdaten ohne vollständige Geschäftsvorfälle
+
 **Anwendungsfälle:**
 1. **Bank-CSV-Import** (Transaktionen) ⭐
-2. **Kassensystem-Export** (AGENDA, helloCash, orderbird, etc.)
-3. **Zahlungsdienste** (PayPal, Stripe, Klarna, etc.)
-4. **E-Commerce-Plattformen** (Shopify, WooCommerce - Umsätze)
-5. **POS-Systeme** (Einzelhandel, Gastronomie)
-6. **Rechnungseingang** aus anderen Buchhaltungsprogrammen (PDF + Daten)
+2. **Zahlungsdienste** (PayPal, Stripe, Klarna, etc.)
+3. **Kreditkarten-Abrechnungen**
+
+**Eigenschaften:**
+- 📝 **Flache Datenstruktur** (eine Zeile = eine Transaktion)
+- ❌ **Keine Kategorisierung** (muss nachträglich erfolgen)
+- ❌ **Keine Kundendaten** (nur Name/IBAN)
+- ❌ **Keine Artikelpositionen**
+- ✅ **Einfaches Parsing** (Standard-CSV)
+
+**Format-Beispiel (Bank-CSV):**
+```csv
+Buchungstag,Wertstellung,Verwendungszweck,Betrag,Währung
+01.01.2025,01.01.2025,Überweisung Müller GmbH,1000.00,EUR
+02.01.2025,02.01.2025,REWE Einkauf,-45.67,EUR
+```
+
+**Workflow:**
+1. CSV hochladen
+2. Format-Erkennung via Template
+3. Transaktionen importieren
+4. **User muss Transaktionen kategorisieren** (SKR03/SKR04)
+
+**Status v1.0:** ✅ **JA** - Bereits vollständig spezifiziert (Kategorie 5)
+
+---
+
+#### **Typ 2b: Import Geschäftsvorfälle (vollständig)**
+
+**Charakteristik:** Vollständige Geschäftsvorfälle mit allen relevanten Daten
+
+**Anwendungsfälle:**
+1. **Rechnungsprogramme** (Fakturama, Rechnungs-Assistent, Lexware) ⭐
+2. **Kassensysteme** (helloCash, AGENDA, orderbird, etc.) ⭐
+3. **E-Commerce-Plattformen** (Shopify, WooCommerce - vollständige Bestellungen)
+4. **POS-Systeme** (Einzelhandel, Gastronomie)
+5. **Warenwirtschaftssysteme** (Eingangsrechnungen mit Artikeln)
+
+**Eigenschaften:**
+- 📊 **Verschachtelte Datenstruktur** (Rechnung → Positionen → Artikel)
+- ✅ **Bereits kategorisiert** (oder Mapping erforderlich)
+- ✅ **Vollständige Kundendaten** (Name, Adresse, USt-IdNr)
+- ✅ **Artikelpositionen** mit Menge, Einzelpreis, Steuersatz
+- ⚠️ **Komplexes Parsing** (CSV mit Relationen, JSON, XML)
+
+**Format-Beispiel (Fakturama Export):**
+
+**rechnungen.csv:**
+```csv
+Rechnungsnummer,Datum,Kunde_ID,Kunde_Name,Kunde_Strasse,Kunde_PLZ,Kunde_Ort,Netto,USt,Brutto,Status,Zahlungsziel
+RE-2024-001,01.01.2024,K001,Müller GmbH,Musterstr. 1,10115,Berlin,1000.00,190.00,1190.00,Bezahlt,14 Tage
+RE-2024-002,05.01.2024,K002,Schmidt AG,Testweg 2,80331,München,500.00,95.00,595.00,Offen,30 Tage
+```
+
+**rechnungs_positionen.csv:**
+```csv
+Rechnungsnummer,Position,Artikel_ID,Artikel_Name,Menge,Einzelpreis,Gesamt,USt_Satz
+RE-2024-001,1,ART001,Beratung Stunde,10,100.00,1000.00,19%
+RE-2024-002,1,ART002,Softwarelizenz,1,500.00,500.00,19%
+```
+
+**Format-Beispiel (helloCash Tagesabschluss):**
+```csv
+Datum,Umsatz_Netto_19,USt_19,Umsatz_Netto_7,USt_7,Umsatz_Netto_0,Brutto_Gesamt,Zahlungsart_Bar,Zahlungsart_EC,Zahlungsart_Kreditkarte,Trinkgeld
+01.01.2024,1034.45,196.55,200.00,14.00,0.00,1445.00,800.00,645.00,0.00,50.00
+02.01.2024,890.76,169.24,150.00,10.50,0.00,1220.50,600.00,620.50,0.00,30.00
+```
+
+**Workflow:**
+1. Export-Datei(en) hochladen
+2. Format-Erkennung (komplexes Template)
+3. **Relationen auflösen:**
+   - Kunde: In Kundenstamm anlegen (falls nicht vorhanden)
+   - Artikel: In Produktstamm anlegen (optional)
+   - Positionen: Mit Rechnung verknüpfen
+4. **Kategorien mappen:**
+   - Fakturama "Honorare" → SKR03 Konto 8400 "Erlöse"
+   - helloCash "Speisen" → SKR03 Konto 8300 "Umsatzerlöse"
+5. Import durchführen (atomare Transaktion)
+6. Import-Protokoll + Archivierung
+
+**Technische Herausforderungen:**
+
+**1. Verschachtelte Datenstrukturen:**
+```python
+# Beispiel: Fakturama-Import
+def import_fakturama_rechnungen(rechnungen_csv: Path, positionen_csv: Path):
+    # 1. Rechnungen einlesen
+    rechnungen = pd.read_csv(rechnungen_csv, delimiter=';', encoding='ISO-8859-1')
+
+    # 2. Positionen einlesen
+    positionen = pd.read_csv(positionen_csv, delimiter=';', encoding='ISO-8859-1')
+
+    # 3. Für jede Rechnung:
+    for _, rechnung in rechnungen.iterrows():
+        # 3a. Kunde anlegen/finden
+        kunde = find_or_create_kunde(
+            name=rechnung['Kunde_Name'],
+            strasse=rechnung['Kunde_Strasse'],
+            plz=rechnung['Kunde_PLZ'],
+            ort=rechnung['Kunde_Ort']
+        )
+
+        # 3b. Rechnung anlegen
+        rechnung_id = create_rechnung(
+            rechnungsnummer=rechnung['Rechnungsnummer'],
+            datum=rechnung['Datum'],
+            kunde_id=kunde.id,
+            betrag_netto=rechnung['Netto'],
+            betrag_brutto=rechnung['Brutto'],
+            status=rechnung['Status']
+        )
+
+        # 3c. Positionen anlegen
+        rechnungs_positionen = positionen[positionen['Rechnungsnummer'] == rechnung['Rechnungsnummer']]
+        for _, position in rechnungs_positionen.iterrows():
+            create_rechnungsposition(
+                rechnung_id=rechnung_id,
+                position=position['Position'],
+                artikel_name=position['Artikel_Name'],
+                menge=position['Menge'],
+                einzelpreis=position['Einzelpreis'],
+                gesamt=position['Gesamt'],
+                ust_satz=parse_ust_satz(position['USt_Satz'])
+            )
+```
+
+**2. Kundenstamm-Mapping:**
+
+**Problem:** Kunde aus Rechnung evtl. schon im Kundenstamm vorhanden?
+
+**Lösung: Duplikat-Erkennung mit Fuzzy-Matching:**
+```python
+def find_or_create_kunde(name: str, strasse: str, plz: str, ort: str) -> Kunde:
+    # 1. Exakter Match (Name + PLZ)
+    kunde = db.query(Kunde).filter(
+        Kunde.name == name,
+        Kunde.plz == plz
+    ).first()
+
+    if kunde:
+        return kunde  # Existierender Kunde gefunden
+
+    # 2. Fuzzy-Match (ähnlicher Name + gleiche PLZ)
+    aehnliche_kunden = db.query(Kunde).filter(Kunde.plz == plz).all()
+    for k in aehnliche_kunden:
+        similarity = fuzz.ratio(k.name.lower(), name.lower())
+        if similarity > 85:  # 85% Ähnlichkeit
+            # User fragen: "Ist 'Müller GmbH' identisch mit 'Mueller GmbH'?"
+            if user_confirms_duplicate(k, name):
+                return k
+
+    # 3. Neuen Kunden anlegen
+    return db.create(Kunde(
+        name=name, strasse=strasse, plz=plz, ort=ort,
+        quelle='Import Fakturama'
+    ))
+```
+
+**3. Kategorien-Mapping:**
+
+**Problem:** Fakturama kennt keine SKR03-Kategorien!
+
+**Lösung: Mapping-Tabelle:**
+```sql
+CREATE TABLE import_kategorie_mapping (
+    id INTEGER PRIMARY KEY,
+    quelle TEXT NOT NULL, -- 'fakturama', 'hellocash', 'agenda'
+    quelle_kategorie TEXT NOT NULL, -- 'Honorare', 'Speisen', etc.
+    ziel_kategorie_id INTEGER NOT NULL, -- Kategorie in RechnungsPilot
+    ziel_konto_skr03 TEXT, -- '8400'
+    ziel_konto_skr04 TEXT, -- '4400'
+
+    FOREIGN KEY (ziel_kategorie_id) REFERENCES kategorien(id)
+);
+
+-- Beispiel-Daten:
+INSERT INTO import_kategorie_mapping VALUES
+(1, 'fakturama', 'Honorare', 1, '8400', '4400'),
+(2, 'fakturama', 'Warenverkauf', 2, '8300', '4300'),
+(3, 'hellocash', 'Speisen', 2, '8300', '4300'),
+(4, 'hellocash', 'Getränke', 2, '8300', '4300'),
+(5, 'agenda', 'Umsatz 19%', 2, '8300', '4300'),
+(6, 'agenda', 'Umsatz 7%', 2, '8300', '4300');
+```
+
+**UI für Mapping-Konfiguration:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ 📥 Fakturama-Import: Kategorien zuordnen                │
+├─────────────────────────────────────────────────────────┤
+│ Bitte ordne die Fakturama-Kategorien den                │
+│ RechnungsPilot-Kategorien zu:                           │
+│                                                         │
+│ Fakturama-Kategorie          RechnungsPilot-Kategorie  │
+│ ┌──────────────────────┐     ┌────────────────────┐    │
+│ │ Honorare             │ →   │ Erlöse (8400) ▼    │    │
+│ │ Warenverkauf         │ →   │ Umsatzerlöse (8300)│    │
+│ │ Dienstleistungen     │ →   │ Erlöse (8400) ▼    │    │
+│ │ Material             │ →   │ Betriebsausgaben ▼ │    │
+│ └──────────────────────┘     └────────────────────┘    │
+│                                                         │
+│ ✅ Mapping für zukünftige Imports speichern            │
+│                                                         │
+│ [Abbrechen]                    [Import durchführen →]   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**4. Format-Vielfalt:**
+
+**Problem:** Jedes Programm hat eigenes Export-Format
+
+**Lösung: Template-System (wie bei Bank-CSV):**
+
+```json
+{
+  "name": "Fakturama Standard Export",
+  "version": "1.0",
+  "typ": "rechnungsprogramm",
+  "quelle": "fakturama",
+
+  "dateien": {
+    "rechnungen": {
+      "dateiname_pattern": "*rechnungen*.csv",
+      "delimiter": ";",
+      "encoding": "ISO-8859-1",
+      "decimal": ",",
+      "date_format": "DD.MM.YYYY",
+
+      "columns": {
+        "rechnungsnummer": "Rechnungsnummer",
+        "datum": "Datum",
+        "kunde_id": "Kunde_ID",
+        "kunde_name": "Kunde_Name",
+        "kunde_strasse": "Kunde_Strasse",
+        "kunde_plz": "Kunde_PLZ",
+        "kunde_ort": "Kunde_Ort",
+        "betrag_netto": "Netto",
+        "betrag_brutto": "Brutto",
+        "ust_betrag": "USt",
+        "status": "Status",
+        "zahlungsziel": "Zahlungsziel"
+      }
+    },
+
+    "positionen": {
+      "dateiname_pattern": "*positionen*.csv",
+      "delimiter": ";",
+      "encoding": "ISO-8859-1",
+
+      "columns": {
+        "rechnungsnummer": "Rechnungsnummer",
+        "position": "Position",
+        "artikel_id": "Artikel_ID",
+        "artikel_name": "Artikel_Name",
+        "menge": "Menge",
+        "einzelpreis": "Einzelpreis",
+        "gesamt": "Gesamt",
+        "ust_satz": "USt_Satz"
+      },
+
+      "relation": {
+        "parent": "rechnungen",
+        "foreign_key": "rechnungsnummer"
+      }
+    }
+  },
+
+  "kategorie_mapping": [
+    {"quelle": "Honorare", "ziel_kategorie": "Erlöse", "konto_skr03": "8400"},
+    {"quelle": "Warenverkauf", "ziel_kategorie": "Umsatzerlöse", "konto_skr03": "8300"}
+  ]
+}
+```
+
+**Status v1.0:** ❌ **NEIN** - Zu komplex für MVP
+
+**Status v1.1:** ✅ **JA** - Fakturama + helloCash priorisiert
+
+**Begründung für v1.1:**
+1. ⏱️ **Hoher Entwicklungsaufwand** (2-3 Wochen pro Format)
+2. 🎯 **Nicht kritisch** (Workarounds verfügbar):
+   - Kundenstamm separat importieren (v1.0 ✅)
+   - Alte Rechnungen als PDF archivieren
+   - Wichtige Altrechnungen manuell eingeben
+3. 🔧 **Fokus v1.0:** Kernfunktionalität (Bank-Import, Rechnungsstellung, UStVA)
+
+**Workaround für Migration (v1.0):**
+```
+Wechsel von Fakturama zu RechnungsPilot:
+
+1. Kundenstamm exportieren (CSV)
+   → In RechnungsPilot importieren ✅ (v1.0)
+
+2. Produktstamm exportieren (CSV)
+   → In RechnungsPilot importieren ⏸️ (v1.1)
+
+3. Alte Rechnungen (2023, 2024):
+   a) Als PDF exportieren und archivieren
+   b) Oder: Top 20 wichtigste Rechnungen manuell eingeben
+
+4. Ab 2025: Neue Rechnungen in RechnungsPilot erstellen
+```
+
+---
+
+**Zusammenfassung Typ 2a vs. 2b:**
+
+| Aspekt | Typ 2a (Rohdaten) | Typ 2b (Geschäftsvorfälle) |
+|--------|-------------------|---------------------------|
+| **Beispiel** | Bank-CSV, PayPal | Fakturama, helloCash |
+| **Struktur** | Flach | Verschachtelt |
+| **Kategorisierung** | ❌ Fehlt | ✅ Vorhanden (Mapping) |
+| **Kundendaten** | Nur Name | ✅ Vollständig |
+| **Artikelpositionen** | ❌ Keine | ✅ Vollständig |
+| **Komplexität** | Niedrig | Hoch |
+| **v1.0** | ✅ JA | ❌ NEIN |
+| **v1.1** | - | ✅ JA (Fakturama, helloCash) |
+
+---
+
+### **Gemeinsame Eigenschaften Typ 2a + 2b:**
 
 **Workflow:**
 ```
@@ -12447,34 +12772,59 @@ ALTER TABLE kassenbuch ADD FOREIGN KEY (import_id) REFERENCES import_buchfuehrun
 
 ### **📋 MVP-Umfang für Kategorie 9**
 
-#### **Phase 1 (MVP):**
+#### **Phase 1 (v1.0 - MVP):**
 
-**Import Stammdaten (editierbar):**
-- ✅ Kundenstamm-Import (CSV)
-- ✅ Produktstamm-Import (CSV)
-- ✅ Lieferantenstamm-Import (CSV)
-- ✅ Spalten-Mapping (automatisch + manuell)
-- ✅ Duplikat-Erkennung (konfigurierbar)
-- ✅ Vorschau + Fehlerprotokoll
+**Typ 1: Import Stammdaten (editierbar)**
+- ✅ Kundenstamm-Import (CSV) ⭐
+  - Spalten-Mapping (automatisch + manuell)
+  - Duplikat-Erkennung (konfigurierbar)
+  - Vorschau + Fehlerprotokoll
+- ⏸️ Produktstamm-Import (CSV) - optional, wenn Zeit
+- ⏸️ Lieferantenstamm-Import (CSV) - v1.1
 
-**Import Buchführung (unveränderbar):**
-- ✅ Bank-CSV-Import (bereits in Kategorie 5 spezifiziert)
+**Typ 2a: Import Buchführung Rohdaten (unveränderbar)**
+- ✅ Bank-CSV-Import ⭐ (bereits in Kategorie 5 spezifiziert)
+  - Template-System für verschiedene Banken
   - Format-Erkennung via Templates
   - Validierung (Pflichtfelder, Datumsformat, Beträge)
-  - Import-Protokoll + Archivierung
-- ⏸️ PayPal-Import (bereits Template vorhanden)
-- ⏸️ Kassensystem-Import (AGENDA, helloCash - v1.1)
+  - Import-Protokoll + Archivierung (SHA256-Hash)
+- 🟡 PayPal-Import - optional (Template bereits vorhanden, niedriger Aufwand)
+
+**Typ 2b: Import Buchführung Geschäftsvorfälle (unveränderbar)**
+- ❌ **NICHT in v1.0** (zu komplex, siehe Workaround unten)
 
 #### **Phase 2 (v1.1):**
-- AGENDA-kompatibel (Kassensystem-Export)
-- helloCash-Export
-- Stripe/Klarna (Zahlungsdienstleister)
+
+**Typ 1: Stammdaten**
+- ✅ Produktstamm-Import (CSV)
+- ✅ Lieferantenstamm-Import (CSV)
+
+**Typ 2a: Rohdaten**
+- ✅ PayPal-Import (falls nicht in v1.0)
+- ✅ Stripe/Klarna (Zahlungsdienstleister)
+
+**Typ 2b: Geschäftsvorfälle** ⭐
+- ✅ **Fakturama-Import** (Rechnungsprogramm, Open Source)
+  - Verschachtelte Strukturen (Rechnungen + Positionen)
+  - Kundenstamm-Mapping mit Fuzzy-Matching
+  - Kategorien-Mapping (Fakturama → SKR03)
+  - Template-System für Relationen
+- ✅ **helloCash-Import** (Kassensystem für Gastronomie)
+  - Tagesabschluss-Import
+  - USt-Aufschlüsselung (19%, 7%, 0%)
+  - Zahlungsarten (Bar, EC, Kreditkarte)
+- ⏸️ AGENDA-kompatibel (Kassensystem) - evtl. v1.1, sonst v2.0
+- ⏸️ Rechnungs-Assistent - v2.0
 
 #### **Phase 3 (v2.0):**
-- E-Commerce (Shopify, WooCommerce)
-- POS-Systeme (orderbird, etc.)
-- Excel-Import (komplexer)
+
+**Typ 2b: Erweiterte Formate**
+- E-Commerce-Plattformen (Shopify, WooCommerce - vollständige Bestellungen)
+- POS-Systeme (orderbird, lightspeed, etc.)
+- Warenwirtschaftssysteme (Lexware, WISO)
+- Excel-Import (komplexe Strukturen)
 - JSON/XML-Import (API-Daten)
+- Generisches Template-System (User kann eigene Formate definieren)
 
 ---
 
@@ -12588,26 +12938,41 @@ def import_bank_csv(datei: Path, template_id: int) -> ImportErgebnis:
 
 ---
 
-### **✅ Status: Kategorie 9 - Grundlagen geklärt**
+### **✅ Status: Kategorie 9 - Vollständig geklärt**
 
 **Wichtigste Erkenntnisse:**
 
-1. ✅ **Zwei fundamental unterschiedliche Import-Typen:**
-   - **Stammdaten:** Editierbar, keine GoBD-Anforderungen
-   - **Buchführung:** Unveränderbar, GoBD-konform, Import-Protokoll
+1. ✅ **Drei fundamental unterschiedliche Import-Typen:**
+   - **Typ 1: Stammdaten** (editierbar) - Kunden, Produkte, Lieferanten
+   - **Typ 2a: Buchführung Rohdaten** (unveränderbar) - Bank-CSV, PayPal
+   - **Typ 2b: Buchführung Geschäftsvorfälle** (unveränderbar) - Fakturama, helloCash
 
-2. ✅ **Buchführungs-Import (kritisch):**
+2. ✅ **Typ 2a vs. 2b Unterscheidung:**
+   - **2a:** Flache Transaktionen, keine Kategorisierung, einfaches Parsing
+   - **2b:** Verschachtelte Strukturen (Rechnung→Positionen), bereits kategorisiert, komplexes Parsing
+
+3. ✅ **Buchführungs-Import (kritisch):**
    - Validierung VOR Import (Pflicht!)
    - Originaldatei archivieren (SHA256-Hash)
    - Import-Protokoll erstellen
    - Unveränderbarkeit via DB-Constraints + Trigger
    - Atomare Transaktionen (alles oder nichts)
 
-3. ✅ **MVP-Umfang:**
-   - Stammdaten-Import: Kunden, Produkte, Lieferanten
-   - Buchführungs-Import: Bank-CSV (bereits in Kategorie 5 spezifiziert)
+4. ✅ **MVP-Umfang präzisiert:**
+   - **v1.0:** Stammdaten (Kunden) + Typ 2a (Bank-CSV)
+   - **v1.1:** Stammdaten (Produkte, Lieferanten) + Typ 2b (Fakturama, helloCash)
+   - **v2.0:** Erweiterte Formate (E-Commerce, POS)
 
-4. ✅ **AGENDA-kompatibel:** Phase 2 (v1.1) - Kassensystem-Export als unveränderbare Buchungen
+5. ✅ **Technische Herausforderungen Typ 2b:**
+   - Verschachtelte Datenstrukturen (Rechnung→Positionen)
+   - Kundenstamm-Mapping mit Fuzzy-Matching
+   - Kategorien-Mapping (Fakturama → SKR03)
+   - Template-System für verschiedene Formate
+
+6. ✅ **Workaround für v1.0:**
+   - Kundenstamm separat importieren
+   - Alte Rechnungen als PDF archivieren
+   - Wichtige Altrechnungen manuell eingeben
 
 ---
 
@@ -12616,7 +12981,7 @@ def import_bank_csv(datei: Path, template_id: int) -> ImportErgebnis:
 - ✅ ~~Kategorie 6: UStVA~~ - **Geklärt** (Hybrid-Ansatz, MVP nur Zahlen)
 - ✅ ~~Kategorie 7: EÜR~~ - **Geklärt** (Hybrid-Ansatz, AfA-Verwaltung, Zufluss-/Abfluss-Prinzip)
 - ✅ ~~Kategorie 8: Stammdaten-Erfassung~~ - **Geklärt** (User/Firma, Kategorien, EU-Länder, Bankkonten, Kontenrahmen, Geschäftsjahr, Kundenstamm mit Hybrid-Lösung, Lieferantenstamm, Produktstamm v2.0)
-- Kategorie 9: Import-Schnittstellen (inkl. AGENDA-kompatibel)
+- ✅ ~~Kategorie 9: Import-Schnittstellen~~ - **Geklärt** (Typ 1: Stammdaten editierbar, Typ 2a: Rohdaten unveränderbar, Typ 2b: Geschäftsvorfälle unveränderbar; Fakturama/helloCash in v1.1, AGENDA in v1.1/v2.0)
 - Kategorie 10: Backup & Update
 - Kategorie 11: Steuersätze
 - Kategorie 12: Hilfe-System
