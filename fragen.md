@@ -5,6 +5,7 @@
 - ✅ Kategorie 2 (PDF/E-Rechnungs-Import) geklärt
 - ✅ Kategorie 3 (Anlage EKS) geklärt
 - ✅ Kategorie 4 (DATEV-Export) geklärt
+- ✅ Kategorie 5 (Bank-Integration) vollständig geklärt - 9 Banken, Auto-Erkennung, Matching
 - ✅ Kategorie 12 (Hilfe-System) geklärt
 - ✅ Kategorie 13 (Scope & Priorisierung) vollständig geklärt - Komfortables MVP, 9 Phasen
 
@@ -94,42 +95,115 @@
 
 ---
 
-## **📋 Kategorie 5: Bank-Integration (CSV-Import)**
+## **📋 Kategorie 5: Bank-Integration (CSV-Import)** ✅ GEKLÄRT
 
 ### **CSV-Formate:**
 
-**Frage 5.1: Welche Banken sind primär relevant?**
-- Sparkasse, Volksbank, Deutsche Bank, ING, N26, DKB, etc.?
-- Gibt es 2-3 Hauptbanken die du zuerst unterstützen würdest?
-- Jede Bank hat leicht andere CSV-Formate
+**Frage 5.1: Welche Banken sind primär relevant?** ✅ GEKLÄRT
 
-**Frage 5.2: CSV-Mapping:**
-- Automatische Erkennung des Bank-Formats (z.B. anhand Header)?
-- Oder muss Nutzer Bank/Format auswählen?
-- Oder muss Nutzer Spalten manuell zuordnen (Datum → Spalte A)?
-- Template-System für verschiedene Banken mit Vorlagen?
+**Entscheidung: Alle vorhandenen Banken unterstützen**
 
-**Frage 5.3: Mehrkonten-Verwaltung:**
-- Wie werden mehrere Konten organisiert?
-  - Geschäftskonto, Privatkonto, PayPal, Stripe, etc.?
-  - Jeweils eigene Import-Datei?
-  - Oder mehrere Konten in einer Datei?
-- Automatische Trennung betrieblich/privat oder manuelle Zuordnung pro Transaktion?
-- Kontenübergreifende Auswertungen (Gesamt-Cashflow)?
+**Unterstützte Banken (9):**
+- [x] Commerzbank
+- [x] DKB
+- [x] ING (2 Varianten: normal + mit Saldo)
+- [x] PayPal
+- [x] Sparkasse LZO (3 Varianten: CAMT v2, CAMT v8, MT940)
+- [x] Targobank Düsseldorf (+ Variation)
+- [x] VR-Teilhaberbank
 
-**Frage 5.4: Matching-Logik:**
-- Nach welchen Kriterien werden Zahlungen mit Rechnungen gematcht?
-  - Rechnungsnummer im Verwendungszweck (RegEx)?
-  - Betrag + Datum (mit wie viel Toleranz? ±3 Tage?)?
-  - Fuzzy-Matching bei Kundennamen (wie genau)?
-  - IBAN/BIC-Abgleich mit Kundenstammdaten?
-- Was bei mehreren möglichen Matches? Vorschlagsliste?
-- Was bei ungematchten Zahlungen? Manuelles Zuordnen?
+**Zusätzliche Formate:**
+- [x] QIF-Import (targobank-duesseldorf.qif)
+- [x] Excel/XLSX-Import (targobank-duesseldorf.xlsx)
+- [x] MT940-Format (vr-teilhaberbank.mta)
 
-**Frage 5.5: Import-Details:**
-- Doppel-Import verhindern (z.B. anhand eindeutiger Referenz)?
-- Zeitraum-Filter beim Import (nur neue Buchungen)?
-- Saldo-Prüfung (stimmt der Endstand)?
+**Fehlende Bank:**
+- [x] Link zu GitHub Issue-Template → Nutzer kann Format beitragen
+
+---
+
+**Frage 5.2: CSV-Mapping** ✅ GEKLÄRT
+
+**Entscheidung: Automatische Format-Erkennung**
+
+- [x] **Automatisch:** Format wird anhand Header/Struktur erkannt
+- [x] **Kein manuelles Mapping:** Nutzer muss NICHT Spalten zuordnen
+- [x] **Template-System:** Für jede Bank ein Erkennungs-Template
+- [x] **Fallback:** Wenn Format unbekannt → Hinweis + Issue-Template-Link
+
+**Frage 5.3: Mehrkonten-Verwaltung** ✅ GEKLÄRT
+
+**Entscheidung: Mehrere Konten mit automatischer Trennung**
+
+**5.3.1: Anzahl Konten**
+- [x] **Mehrere Konten** (flache Struktur, unbegrenzt)
+- [x] Jedes Konto hat: Name, Bank, IBAN, Typ (Geschäftlich/Gemischt/Privat)
+- [x] Beispiel: Sparkasse Geschäftskonto, ING Privat, PayPal
+
+**5.3.2: Betrieblich vs. Privat - Trennung**
+- [x] **Automatisch + Korrektur-Möglichkeit**
+- [x] Bei Konto-Einrichtung: Typ wählen (Nur Geschäftlich / Gemischt / Nur Privat)
+- [x] Bei "Gemischt": Standard = alle geschäftlich, einzelne als "privat" markierbar
+- [x] Filter in Transaktionsliste: [✓] Geschäftlich [ ] Privat
+
+**5.3.3: Import-Handling**
+- [x] **Jedes Konto = separate CSV**
+- [x] Konto auswählen → CSV hochladen → wird diesem Konto zugeordnet
+- [x] Keine Mehrkonten-CSVs (zu komplex für v1.0)
+
+**5.3.4: Kontenübergreifende Auswertung**
+- [x] Gesamt-Saldo über alle Konten
+- [x] Dashboard: "Einnahmen gesamt (alle Konten)"
+- [x] EÜR/UStVA: Automatisch alle geschäftlichen Konten zusammenfassen
+
+**Frage 5.4: Matching-Logik (Rechnung → Zahlung)** ✅ GEKLÄRT
+
+**Entscheidung: Intelligentes Matching mit Vorschlagsliste**
+
+**5.4.1: Matching-Kriterien (Kombiniert)**
+- [x] **Priorität 1:** Betrag + Datum (±7 Tage) + Rechnungsnummer (RegEx im Verwendungszweck)
+- [x] **Priorität 2 (Fallback):** Betrag + Datum (±7 Tage) + Lieferanten-Name (Fuzzy-Matching)
+- [x] **Datums-Toleranz:** ±7 Tage (Rechnung → Zahlung kann verzögert sein)
+- [x] **Fuzzy-Matching:** "REWE" ≈ "REWE GmbH & Co KG" (ähnlichkeitsbasiert)
+- [x] **IBAN-Abgleich:** NICHT verwenden (zu unsicher, Lieferanten haben oft mehrere)
+
+**5.4.2: Mehrere mögliche Matches**
+- [x] **Vorschlagsliste zeigen** (Nutzer entscheidet)
+- [x] Liste mit allen Kandidaten, Nutzer wählt den richtigen
+- [x] Option "Keine davon" → bleibt ungematched
+
+**5.4.3: Ungematche Zahlungen**
+- [x] **Als "ungematched" markieren** (Tab/Badge: "Nicht zugeordnet: 5")
+- [x] Nichts geht verloren, Nutzer kann später zuordnen
+- [x] KEINE automatische Rechnungs-Erstellung (zu riskant)
+
+**5.4.4: Manuelles Matching**
+- [x] Nutzer kann jederzeit manuell Zahlung ↔ Rechnung zuordnen
+- [x] Suchfeld/Liste bei "Nicht zugeordneten Zahlungen"
+- [x] Auch bei automatisch gematchten: Zuordnung änderbar
+
+**Frage 5.5: Import-Details & Duplikaterkennung** ✅ GEKLÄRT
+
+**Entscheidung: Hybrid-Duplikaterkennung mit Schutz vor Doppelbuchung**
+
+**Duplikat-Erkennung:**
+- [x] **Strategie Hybrid:**
+  1. Bank-ID vorhanden (z.B. Sparkasse CAMT `<TxId>`)? → Nutze diese
+  2. Keine Bank-ID? → Hash verwenden: `SHA256(Betrag + Datum + Uhrzeit + Verwendungszweck + IBAN)`
+- [x] **Uhrzeit einbeziehen** (wenn in CSV vorhanden) → verhindert doppelte Einkäufe am selben Tag
+
+**Verhalten bei Duplikaten:**
+- [x] **Automatisch überspringen** (keine Nutzer-Nachfrage bei jedem Duplikat)
+- [x] **Log anzeigen:** "125 neue, 25 Duplikate übersprungen" + [Log anzeigen]-Button
+- [x] **Bei 100% Duplikaten:** Warnung "Scheint bereits importiert, fortfahren?"
+
+**Schutz vor Doppelbuchung:**
+- [x] **Rechnung bereits "bezahlt"?** → Status kann nicht nochmal geändert werden
+- [x] **Status-Prüfung** vor Zahlungsabgleich
+
+**Weitere Import-Details:**
+- [ ] Zeitraum-Filter beim Import? (nur neue Buchungen ab Datum X)
+- [ ] Saldo-Prüfung? (stimmt Endstand mit CSV überein?)
 
 ---
 
