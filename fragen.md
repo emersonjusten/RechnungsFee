@@ -414,6 +414,8 @@
 **Steuer:**
 - [x] **Umsatzsteuer-Status** * (Dropdown: Regelbesteuerung / Kleinunternehmer §19 UStG / Befreit)
 - [x] **Steuernummer** * (Pflicht - vom Finanzamt)
+  - Validierung: Altes Format (bundesland-spezifisch, z.B. 123/456/78901) UND neues Format (13-stellig einheitlich, z.B. 2893081508152)
+  - Software muss BEIDE Formate akzeptieren und validieren
 - [x] **Zuständiges Finanzamt** * (Dropdown oder PLZ-basierte Auswahl)
 
 ---
@@ -512,6 +514,10 @@ Bei Auswahl von Einzelunternehmer, Freiberufler:
   - Steuernummer (national) ODER
   - USt-IdNr. (EU-weit)
 - Begründung: Distributoren/Großhändler benötigen diese für Rechnungsstellung
+- **Validierung Steuernummer:**
+  - Altes Format: Bundesland-spezifisch (z.B. 123/456/78901)
+  - Neues Format: 13-stellig einheitlich (z.B. 2893081508152)
+  - Software muss BEIDE Formate akzeptieren und validieren
 
 **Punkt 3b: Zweite Adresse (Privatadresse)** ✅
 - **v1.0:** Einfaches Zusatzfeld-Set (ALLE optional):
