@@ -82,6 +82,7 @@ Hilf uns herauszufinden, welche Banken Priorität haben sollten!
 - [x] **PayPal** ✅ (Aktivitätsbericht)
 - [x] **Targobank** ✅ (4 Formate: CSV, QIF, XLSX)
 - [x] **Sparda-Bank West eG** ✅
+- [x] **GLS Gemeinschaftsbank eG** ✅
 
 ### Noch offen:
 - [ ] Deutsche Bank
@@ -127,7 +128,7 @@ Jede Bank-CSV, die du beiträgst, hilft:
 
 ## 📊 Status-Übersicht
 
-Aktuelle Anzahl unterstützter Banken: **10 Banken, 17+ Formate** 🎉
+Aktuelle Anzahl unterstützter Banken: **9 Banken, mit unterschiedlichen Formate** 🎉
 
 | Bank | Format | Status |
 |------|--------|--------|
@@ -146,13 +147,14 @@ Aktuelle Anzahl unterstützter Banken: **10 Banken, 17+ Formate** 🎉
 | ✅ VR-Teilhaberbank | CSV-Export | CSV vorhanden |
 | ✅ VR-Teilhaberbank | MT940 Format | MTA vorhanden |
 | ✅ Sparda-Bank West eG | CSV-Export | CSV vorhanden |
+| ✅ GLS Gemeinschaftsbank eG | CSV-Export | CSV vorhanden |
 | ⏳ Volksbank | Standard-CSV | Noch offen |
 | ⏳ N26 | - | Noch offen |
 | ⏳ Postbank | - | Noch offen |
 | ⏳ Deutsche Bank | - | Noch offen |
 | ⏳ Comdirect | - | Noch offen |
 
-**Wow! Schon 10 Banken mit 17+ verschiedenen Formaten dabei! 🚀**
+**Wow! Schon 9 Banken mit teils verschiedenen Formaten dabei! 🚀**
 
 **Hinweis:** Manche Banken bieten mehrere Export-Formate an (MT940, CAMT, QIF, XLSX). Du kannst gerne alle Formate beitragen, die deine Bank anbietet!
 

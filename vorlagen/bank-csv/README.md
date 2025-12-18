@@ -21,6 +21,7 @@ Dieser Ordner enthält Beispiel-CSVs verschiedener Banken für die Import-Funkti
 - [x] **PayPal** - Zahlungsdienstleister (wichtig für Online-Geschäft) ✅
 - [x] **Targobank** ✅
 - [x] **Sparda-Bank West eG** ✅
+- [x] **GLS Gemeinschaftsbank eG** - Sozial-ökologische Bank ✅
 
 ### Später:
 
@@ -56,6 +57,7 @@ bank-csv/
 ├── vr-teilhaberbank.csv                   # ✅ VR-Teilhaberbank - CSV-Export
 ├── vr-teilhaberbank.mta                   # ✅ VR-Teilhaberbank - MT940 Format
 ├── sparda-bank-west.csv                   # ✅ Sparda-Bank West eG - CSV-Export
+├── gls-bank.csv                           # ✅ GLS Gemeinschaftsbank eG - CSV-Export
 ├── volksbank.csv                          # (noch nicht vorhanden)
 ├── n26.csv                                # (noch nicht vorhanden)
 └── ...
@@ -311,6 +313,21 @@ def test_sparkasse_import():
   - Enthält Saldo nach jeder Buchung
   - Gläubiger-ID und Mandatsreferenz bei Lastschriften
 
+### GLS Gemeinschaftsbank eG
+**Datei:** `gls-bank.csv`
+
+- **Trennzeichen:** `;` (Semikolon)
+- **Encoding:** UTF-8 mit BOM
+- **Dezimaltrennzeichen:** `,` (Komma)
+- **Datumsformat:** DD.MM.YYYY
+- **Header ab Zeile:** 1
+- **Spalten:** Bezeichnung Auftragskonto, IBAN Auftragskonto, BIC Auftragskonto, Bankname Auftragskonto, Buchungstag, Valutadatum, Name Zahlungsbeteiligter, IBAN Zahlungsbeteiligter, BIC (SWIFT-Code) Zahlungsbeteiligter, Buchungstext, Verwendungszweck, Betrag, Waehrung, Saldo nach Buchung, Bemerkung, Gekennzeichneter Umsatz, Glaeubiger ID, Mandatsreferenz
+- **Besonderheiten:**
+  - Identische Struktur wie VR-Teilhaberbank und Sparda-Bank (Genossenschaftsbank)
+  - 18 Spalten mit vollständigen SEPA-Informationen
+  - Enthält Saldo nach jeder Buchung
+  - Gläubiger-ID und Mandatsreferenz bei Lastschriften
+
 ---
 
 ## 📊 Status-Übersicht
@@ -332,6 +349,7 @@ def test_sparkasse_import():
 | VR-Teilhaberbank | CSV-Export | ✅ | ❌ | ❌ |
 | VR-Teilhaberbank | MT940 (.mta) | ✅ | ❌ | ❌ |
 | Sparda-Bank West eG | CSV-Export | ✅ | ❌ | ❌ |
+| GLS Gemeinschaftsbank eG | CSV-Export | ✅ | ❌ | ❌ |
 | Volksbank | - | ❌ | ❌ | ❌ |
 | N26 | - | ❌ | ❌ | ❌ |
 

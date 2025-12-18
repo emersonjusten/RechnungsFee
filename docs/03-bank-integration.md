@@ -1011,10 +1011,13 @@ class BankCSVParser:
 ✅ **System-Templates:**
 - Sparkasse/LZO (MT940, CAMT V2, CAMT V8)
 - PayPal
-- Volksbank
+- Volksbank/Raiffeisenbank (VR-Teilhaberbank)
 - DKB
 - ING
-- N26
+- Commerzbank
+- Targobank
+- Sparda-Bank West eG
+- GLS Gemeinschaftsbank eG
 
 ✅ **Features:**
 - Automatische Format-Erkennung
